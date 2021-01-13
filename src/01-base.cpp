@@ -1,2 +1,1 @@
-#pragma once
-#include "gg/base.h"
+#include "rg/base.h"
