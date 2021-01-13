@@ -4,11 +4,32 @@
 #include <string>
 #include <sstream>
 
-#define RG_LOG(severity, ...) do {\
+#define RG_LOG(controller, severity, ...) do {\
     using namespace rg::log::macros; \
-    if (rg::log::Controller::getInstance()->enabled(severity)) { \
+    if (rg::log::Controller::getInstance(controller)->enabled(severity)) { \
         rg::log::Helper((int)severity, __FILE__, __LINE__, __FUNCTION__)(__VA_ARGS__); \
     } } while(0)
+
+#if defined(_DEBUG) && !defined(NDEBUG)
+#define RG_DLOG RG_LOG
+#else
+#define RG_TRACE(...) void(0)
+#endif
+
+#define RG_RIP(...) RG_LOG(, F, __VA_ARGS__)
+
+#define RG_LOGE(...) RG_LOG(, E, __VA_ARGS__)
+#define RG_LOGW(...) RG_LOG(, W, __VA_ARGS__)
+#define RG_LOGI(...) RG_LOG(, I, __VA_ARGS__)
+#define RG_LOGV(...) RG_LOG(, V, __VA_ARGS__)
+#define RG_LOGB(...) RG_LOG(, B, __VA_ARGS__)
+
+// logs enabled only in debug build
+#define RG_DLOGE(...) RG_DLOG(, E, __VA_ARGS__)
+#define RG_DLOGW(...) RG_DLOG(, W, __VA_ARGS__)
+#define RG_DLOGI(...) RG_DLOG(, I, __VA_ARGS__)
+#define RG_DLOGV(...) RG_DLOG(, V, __VA_ARGS__)
+#define RG_DLOGB(...) RG_DLOG(, B, __VA_ARGS__)
 
 namespace rg {
 
@@ -51,7 +72,7 @@ namespace macros {
         return Controller::getInstance(str);
     }
 
-    inline std::stringstream ss(const char * str) {
+    inline std::stringstream s(const char * str) {
         std::stringstream ss;
         ss << str;
         return ss;
