@@ -228,36 +228,37 @@ rg::RawImage::RawImage(ImageDesc&& desc, const void * initialContent, size_t ini
 //
 //
 // -----------------------------------------------------------------------------
-rg::RawImage rg::RawImage::load(std::istream &) {
-    // auto begin = fp.tell();
+rg::RawImage rg::RawImage::load(std::istream & fp) {
+    // store the starting point
+    auto begin = fp.tellg();
 
-    // // setup stbi io callback
-    // stbi_io_callbacks io = {};
-    // io.read = [](void* user, char* data, int size) -> int {
-    //     auto fp = (GN::File*)user;
-    //     size_t read = 0;
-    //     if (!fp->read(data, size, &read)) return 0;
-    //     return (int)read;
-    // };
-    // io.skip = [](void* user, int n) {
-    //     auto fp = (GN::File*)user;
-    //     fp->seek((size_t)n, GN::FileSeek::CUR);
-    // };
-    // io.eof = [](void* user) -> int {
-    //     auto fp = (GN::File*)user;
-    //     return fp->eof();
-    // };
+    // setup stbi io callback
+    stbi_io_callbacks io = {};
+    io.read = [](void* user, char* data, int size) -> int {
+        auto fp = (std::istream *)user;
+        fp->read(data, size);
+        if (!fp->good()) return 0;
+        return size;
+    };
+    io.skip = [](void* user, int n) {
+        auto fp = (std::istream*)user;
+        fp->seekg(n, std::ios::cur);
+    };
+    io.eof = [](void* user) -> int {
+        auto fp = (std::istream*)user;
+        return fp->eof();
+    };
 
-    // // Load from common image file via stb_image library
-    // // TODO: hdr/grayscale support
-    // int x,y,n;
-    // auto data = stbi_load_from_callbacks(&io, &fp, &x, &y, &n, 4);
-    // if (data) {
-    //     auto image = RawImage(ImageDesc(ImagePlaneDesc::make(ColorFormat::RGBA_8_8_8_8_UNORM, (uint32_t)x, (uint32_t)y)), data);
-    //     RG_ASSERT(image.desc().valid());
-    //     stbi_image_free(data);
-    //     return image;
-    // }
+    // Load from common image file via stb_image library
+    // TODO: hdr/grayscale support
+    int x,y,n;
+    auto data = stbi_load_from_callbacks(&io, &fp, &x, &y, &n, 4);
+    if (data) {
+        auto image = RawImage(ImageDesc(ImagePlaneDesc::make(ColorFormat::RGBA_8_8_8_8_UNORM(), (uint32_t)x, (uint32_t)y)), data);
+        RG_ASSERT(image.desc().valid());
+        stbi_image_free(data);
+        return image;
+    }
 
     // // try read as DDS
     // fp.seek(begin, GN::FileSeek::SET);
