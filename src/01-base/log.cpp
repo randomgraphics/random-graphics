@@ -1,5 +1,4 @@
-#define RG_INTERNAL
-#include "rg/base.h"
+#include "pch.h"
 #include <stdarg.h>
 
 using namespace rg;

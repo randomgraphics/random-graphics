@@ -4,7 +4,10 @@ else()
     set(type SHARED)
 endif()
 
-set(sources 01-base.cpp)
+set(sources
+    01-base/log.cpp
+    01-base/image.cpp
+)
 
 if (OPENGL_FOUND)
     list(APPEND sources 02-opengl.cpp)
