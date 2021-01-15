@@ -35,6 +35,8 @@ const char * rg::log::Helper::formatlog(const char * format, ...) {
 
     thread_local static char buf1[16384];
 
+    // TODO: prefix messsage with tid,pid,severity,file,line
+
     va_list args;
     va_start(args, format);
 #ifdef _MSC_VER
@@ -46,10 +48,11 @@ const char * rg::log::Helper::formatlog(const char * format, ...) {
 
     buf1[std::size(buf1)-1] = 0;
 
-    return "";
+    return buf1;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
 //
-void rg::log::Helper::post(const char *) {
+void rg::log::Helper::post(const char * s) {
+    printf("%s\n", s);
 }

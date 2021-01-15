@@ -5,6 +5,7 @@ else()
 endif()
 
 set(sources
+    01-base/base.cpp
     01-base/log.cpp
     01-base/image.cpp
 )

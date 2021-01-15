@@ -239,30 +239,15 @@ public:
 
 } // namespace log
 
-// /// aligned memory alloc
-// inline void * aalloc(size_t alignment, size_t size) {
-//     void * ptr = nullptr;
-// #if defined(__GNUC__)
-//     ptr = aligned_alloc(alignment, size);
-// #elif defined(_MSC_VER)
-//     ptr = _aligned_malloc(size, alignment);
-// #else
-// #error "unsupported compiler/os"
-// #endif
-//     if (0 == ptr) {
-//         RG_LOGE("out of memory!");
-//     }
-//     return ptr;
-// }
+/// Return's pointer to the internal storage. The content will be overwritten
+/// by the next call on the same thread.
+const char * formatstr(const char * format, ...);
 
-// /// free memory allocated by aaloc
-// inline void afree(void * ptr) {
-// #if defined(__GNUC__)
-//     ::free(ptr);
-// #elif defined(_MSC_VER)
-//     _aligned_free(ptr);
-// #endif
-// }
+/// dump current callstck to string
+std::string backtrace();
+
+/// convert duration in nanoseconds to string
+std::string ns2str(uint64_t ns);
 
 /// Commonly used math constants
 //@{
