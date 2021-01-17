@@ -325,7 +325,7 @@ inline constexpr uint64_t floorPowerOf2(uint64_t n) {
 }
 
 // -----------------------------------------------------------------------------
-/// 将value限定在[vmin, vmax]区间内
+//
 template < typename T >
 inline constexpr T clamp(T value, const T & vmin, const T & vmax) {
     return vmin > value ? vmin : vmax < value ? vmax : value;
@@ -532,13 +532,13 @@ union ColorFormat {
     ///
     static constexpr ColorFormat make(Layout l, Sign si012, Sign si3, Swizzle sw0, Swizzle sw1, Swizzle sw2, Swizzle sw3) {
         return {
-            l,
-            si012,
-            si3,
-            sw0,
-            sw1,
-            sw2,
-            sw3,
+            (unsigned int)l,
+            (unsigned int)si012,
+            (unsigned int)si3,
+            (unsigned int)sw0,
+            (unsigned int)sw1,
+            (unsigned int)sw2,
+            (unsigned int)sw3,
             0,
         };
     }
