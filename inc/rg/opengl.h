@@ -2,6 +2,7 @@
 #include "base.h"
 #include <memory>
 #include <type_traits>
+#include <array>
 #include <vector>
 #include <unordered_map>
 #include <atomic>
@@ -10,14 +11,15 @@
 #include <sstream>
 #include <cstring>
 
-// TODO: replace with <glad/glad.h>
-#ifndef __gl_h_
-#define GL_GLEXT_PROTOTYPES
-#include <GL/gl.h>
+#if !RG_BUILD_STATIC
+#define GLAD_GLAPI_EXPORT
 #endif
-
-#if defined(__ANDROID__) || defined(__linux__)
-#include <EGL/egl.h>
+#if RG_MSWIN
+#include <glad/glad_wgl.h>
+#elif RG_LINUX
+#include <glad/glad.h>
+#include <glad/glad_egl.h>
+#include <glad/glad_glx.h>
 #endif
 
 // Check OpenGL error. This check is enabled in both debug and release build.
@@ -92,9 +94,90 @@ inline GLint getInt(GLenum name, GLint i)
     return value;
 }
 
-#if defined(__ANDROID__) || defined(__linux__)
+// -----------------------------------------------------------------------------
+//
+#if RG_LINUX
 const char * eglError2String(EGLint err);
 #endif
+
+// -----------------------------------------------------------------------------
+//
+struct InternalFormatDesc {
+    GLenum      internalFormat;
+    ColorFormat colorFormat;
+};
+static inline constexpr InternalFormatDesc INTERNAL_FORMATS[] = {
+    { GL_R8              , ColorFormat::R_8_UNORM(), },
+    { GL_R8_SNORM        , ColorFormat::R_8_SNORM(), },
+    { GL_R16             , ColorFormat::R_16_UNORM(), },
+    { GL_R16_SNORM       , ColorFormat::R_16_SNORM(), },
+    { GL_RG8             , ColorFormat::RG_8_8_UNORM(), },
+    { GL_RG8_SNORM       , ColorFormat::RG_8_8_SNORM(), },
+    { GL_RG16            , ColorFormat::RG_16_16_UNORM(), },
+    { GL_RG16_SNORM      , ColorFormat::RG_16_16_SNORM(), },
+    { GL_R3_G3_B2        , ColorFormat::RGB_3_3_2_UNORM(), },
+    { GL_RGB4            , ColorFormat::make(ColorFormat::LAYOUT_4_4_4_4, ColorFormat::SIGN_UNORM, ColorFormat::SWIZZLE_RGB1), },
+    { GL_RGB5            , ColorFormat::make(ColorFormat::LAYOUT_5_5_5_1, ColorFormat::SIGN_UNORM, ColorFormat::SWIZZLE_RGB1), },
+    { GL_RGB8            , ColorFormat::RGB_8_8_8_UNORM(), },
+    { GL_RGB8_SNORM      , ColorFormat::RGB_8_8_8_SNORM(), },
+    { GL_RGB10           , ColorFormat::make(ColorFormat::LAYOUT_10_10_10_2, ColorFormat::SIGN_UNORM, ColorFormat::SWIZZLE_RGB1), },
+    //{ GL_RGB12           , ColorFormat::(), },
+    { GL_RGB16_SNORM     , ColorFormat::make(ColorFormat::LAYOUT_16_16_16_16, ColorFormat::SIGN_SNORM, ColorFormat::SWIZZLE_RGB1), },
+    //{ GL_RGBA2           , ColorFormat::(), },
+    //{ GL_RGBA4           , ColorFormat::(), },
+    //{ GL_RGB5_A1         , ColorFormat::(), },
+    { GL_RGBA8           , ColorFormat::RGBA_8_8_8_8_UNORM(), },
+    { GL_RGBA8_SNORM     , ColorFormat::RGBA_8_8_8_8_SNORM(), },
+    // { GL_RGB10_A2        , ColorFormat::(), },
+    // { GL_RGB10_A2UI      , ColorFormat::(), },
+    // { GL_RGBA12          , ColorFormat::(), },
+    // { GL_RGBA16          , ColorFormat::(), },
+    // { GL_SRGB8           , ColorFormat::(), },
+    // { GL_SRGB8_ALPHA8    , ColorFormat::(), },
+    // { GL_R16F            , ColorFormat::(), },
+    // { GL_RG16F           , ColorFormat::(), },
+    // { GL_RGB16F          , ColorFormat::(), },
+    // { GL_RGBA16F         , ColorFormat::(), },
+    // { GL_R32F            , ColorFormat::(), },
+    // { GL_RG32F           , ColorFormat::(), },
+    // { GL_RGB32F          , ColorFormat::(), },
+    // { GL_RGBA32F         , ColorFormat::(), },
+    // { GL_R11F_G11F_B10F  , ColorFormat::(), },
+    // { GL_RGB9_E5         , ColorFormat::(), },
+    // { GL_R8I             , ColorFormat::(), },
+    // { GL_R8UI            , ColorFormat::(), },
+    // { GL_R16I            , ColorFormat::(), },
+    // { GL_R16UI           , ColorFormat::(), },
+    // { GL_R32I            , ColorFormat::(), },
+    // { GL_R32UI           , ColorFormat::(), },
+    // { GL_RG8I            , ColorFormat::(), },
+    // { GL_RG8UI           , ColorFormat::(), },
+    // { GL_RG16I           , ColorFormat::(), },
+    // { GL_RG16UI          , ColorFormat::(), },
+    // { GL_RG32I           , ColorFormat::(), },
+    // { GL_RG32UI          , ColorFormat::(), },
+    // { GL_RGB8I           , ColorFormat::(), },
+    // { GL_RGB8UI          , ColorFormat::(), },
+    // { GL_RGB16I          , ColorFormat::(), },
+    // { GL_RGB16UI         , ColorFormat::(), },
+    // { GL_RGB32I          , ColorFormat::(), },
+    // { GL_RGB32UI         , ColorFormat::(), },
+    // { GL_RGBA8I          , ColorFormat::(), },
+    // { GL_RGBA8UI         , ColorFormat::(), },
+    // { GL_RGBA16I         , ColorFormat::(), },
+    // { GL_RGBA16UI        , ColorFormat::(), },
+    // { GL_RGBA32I         , ColorFormat::(), },
+    // { GL_RGBA32UI        , ColorFormat::(), },
+    { GL_NONE            , ColorFormat::UNKNOWN() },
+};
+inline constexpr const InternalFormatDesc & getInternalFormatDesc(GLenum f) {
+    for(size_t i = 0; i < std::size(INTERNAL_FORMATS); ++i) {
+        if (f == INTERNAL_FORMATS[i].internalFormat) {
+            return INTERNAL_FORMATS[i]; // found it.
+        }
+    }
+    return INTERNAL_FORMATS[std::size(INTERNAL_FORMATS) - 1];
+}
 
 // -----------------------------------------------------------------------------
 //

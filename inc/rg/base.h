@@ -6,6 +6,7 @@
 #include <fstream>
 #include <map>
 #include <mutex>
+#include <memory>
 
 /// Set RG_BUILD_DEBUG to 0 to disable debug features.
 #ifndef RG_BUILD_DEBUG
@@ -21,6 +22,20 @@
 #define RG_BUILD_STATIC 1
 #endif
 
+/// determine operating system
+//@{
+#if defined(_WIN32)
+#define RG_MSWIN 1
+#elif defined(__APPLE__)
+#define RG_DARWIN 1
+#elif defined(__linux__)
+#define RG_LINUX 1
+#ifdef __ANDROID__
+#define RG_ANDROID 1
+#endif
+#endif
+//@}
+
 // Disable some known "harmless" warnings. So we can use /W4 throughout our code base.
 #ifdef _MSC_VER
 #pragma warning(disable : 4201) // nameless struct/union
@@ -32,9 +47,9 @@
 #define RG_LOG(tag, severity, ...) do { \
     using namespace rg::log::macros; \
     if (rg::log::Controller::getInstance(tag)->enabled(severity)) { \
-        rg::log::Helper((int)severity, __FILE__, __LINE__, __FUNCTION__)(__VA_ARGS__); \
+        rg::log::Helper h((int)severity, __FILE__, __LINE__, __FUNCTION__); \
+        h(__VA_ARGS__); \
     } } while(0)
-#define RG_LOGF(...) RG_LOG(, F, __VA_ARGS__)
 #define RG_LOGE(...) RG_LOG(, E, __VA_ARGS__)
 #define RG_LOGW(...) RG_LOG(, W, __VA_ARGS__)
 #define RG_LOGI(...) RG_LOG(, I, __VA_ARGS__)
@@ -49,7 +64,6 @@
 #else
 #define RG_DLOG(...) void(0)
 #endif
-#define RG_DLOGF(...) RG_DLOG(, F, __VA_ARGS__)
 #define RG_DLOGE(...) RG_DLOG(, E, __VA_ARGS__)
 #define RG_DLOGW(...) RG_DLOG(, W, __VA_ARGS__)
 #define RG_DLOGI(...) RG_DLOG(, I, __VA_ARGS__)
@@ -58,26 +72,26 @@
 //@}
 
 /// call this when encountering unrecoverable error.
-#define RG_RIP(...)                              \
-    do {                                         \
-        RG_LOGF(__VA_ARGS__);                    \
-        rg::rip(__FILE__, __LINE__, "RIP", "");  \
+#define RG_RIP(...)                         \
+    do {                                    \
+        RG_LOG(, F, "[RIP] " __VA_ARGS__);  \
+        rg::rip();                          \
     } while (0)
 
 /// Check for required conditions. call RIP when the condition is not met.
-#define RG_CHK(x)                                                \
-    if (!(x)) {                                                  \
-        rg::rip(__FILE__, __LINE__, "condition #x didn't met");  \
-    } else                                                       \
+#define RG_CHK(x)                           \
+    if (!(x)) {                             \
+        RG_RIP("condition #x didn't met");  \
+    } else                                  \
         void(0)
 
 /// Runtime assertion
 //@{
 #if RG_BUILD_DEBUG
-#define RG_ASSERT(x, message)                      \
-    if (!(x)) {                                    \
-        rg::rip(__FILE__, __LINE__, #x, message);  \
-    } else                                         \
+#define RG_ASSERT(x, ...)              \
+    if (!(x)) {                        \
+        RG_RIP("ASSERT failure: #x");  \
+    } else                             \
         void(0)
 #else
 #define RG_ASSERT(...) (void) 0
@@ -106,7 +120,7 @@
 
 /// export/import type decl
 //@{
-#ifdef _WIN32
+#if RG_MSWIN
 #define RG_IMPORT __declspec(dllimport)
 #define RG_EXPORT __declspec(dllexport)
 #else
@@ -239,12 +253,21 @@ public:
 
 } // namespace log
 
-/// Return's pointer to the internal storage. The content will be overwritten
-/// by the next call on the same thread.
-const char * formatstr(const char * format, ...);
+/// Force termination of the current process.
+[[noreturn]] void rip();
 
 /// dump current callstck to string
 std::string backtrace();
+
+/// allocated aligned memory. The returned pointer must be freed by
+void * aalloc(size_t alignment, size_t bytes);
+
+/// free memory allocated by aalloc()
+void afree(void *);
+
+/// Return's pointer to the internal storage. The content will be overwritten
+/// by the next call on the same thread.
+const char * formatstr(const char * format, ...);
 
 /// convert duration in nanoseconds to string
 std::string ns2str(uint64_t ns);
@@ -352,6 +375,8 @@ union ColorFormat {
     enum Layout {
         LAYOUT_UNKNOWN = 0,
         LAYOUT_1,
+        LAYOUT_2_2_2_2,
+        LAYOUT_3_3_2,
         LAYOUT_4_4,
         LAYOUT_4_4_4_4,
         LAYOUT_5_5_5_1,
@@ -416,6 +441,8 @@ union ColorFormat {
         //BW  BH  BB   BPP   CH      CH0        CH1          CH2          CH3
         { 0 , 0 , 0  , 0   , 0 , { { 0 , 0  }, { 0  , 0  }, { 0  , 0  }, { 0  , 0  } } }, //LAYOUT_UNKNOWN,
         { 8 , 1 , 1  , 1   , 1 , { { 0 , 1  }, { 0  , 0  }, { 0  , 0  }, { 0  , 0  } } }, //LAYOUT_1,
+        { 1 , 1 , 1  , 8   , 4 , { { 0 , 2  }, { 2  , 2  }, { 4  , 2  }, { 6  , 2  } } }, //LAYOUT_2_2_2_2,
+        { 1 , 1 , 1  , 8   , 3 , { { 0 , 3  }, { 3  , 3  }, { 8  , 2  }, { 0  , 0  } } }, //LAYOUT_3_3_2,
         { 1 , 1 , 1  , 8   , 2 , { { 0 , 4  }, { 4  , 4  }, { 0  , 0  }, { 0  , 0  } } }, //LAYOUT_4_4,
         { 1 , 1 , 2  , 16  , 4 , { { 0 , 4  }, { 4  , 4  }, { 8  , 4  }, { 12 , 4  } } }, //LAYOUT_4_4_4_4,
         { 1 , 1 , 2  , 16  , 4 , { { 0 , 5  }, { 10 , 5  }, { 15 , 5  }, { 15 , 1  } } }, //LAYOUT_5_5_5_1,
@@ -620,8 +647,10 @@ union ColorFormat {
 
     // 8 bits
     static constexpr ColorFormat R_8_UNORM()                   { return make(LAYOUT_8, SIGN_UNORM, SWIZZLE_R001); }
+    static constexpr ColorFormat R_8_SNORM()                   { return make(LAYOUT_8, SIGN_SNORM, SWIZZLE_R001); }
     static constexpr ColorFormat L_8_UNORM()                   { return make(LAYOUT_8, SIGN_UNORM, SWIZZLE_RRR1); }
     static constexpr ColorFormat A_8_UNORM()                   { return make(LAYOUT_8, SIGN_UNORM, SWIZZLE_111R); }
+    static constexpr ColorFormat RGB_3_3_2_UNORM()             { return make(LAYOUT_3_3_2, SIGN_UNORM, SWIZZLE_RGB1); }
 
     // 16 bits
     static constexpr ColorFormat BGRA_4_4_4_4_UNORM()          { return make(LAYOUT_4_4_4_4, SIGN_UNORM, SWIZZLE_BGRA); }
@@ -645,7 +674,9 @@ union ColorFormat {
     // 24 bits
 
     static constexpr ColorFormat RGB_8_8_8_UNORM()             { return make(LAYOUT_8_8_8, SIGN_UNORM, SWIZZLE_RGB1); }
+    static constexpr ColorFormat RGB_8_8_8_SNORM()             { return make(LAYOUT_8_8_8, SIGN_SNORM, SWIZZLE_RGB1); }
     static constexpr ColorFormat BGR_8_8_8_UNORM()             { return make(LAYOUT_8_8_8, SIGN_UNORM, SWIZZLE_BGR1); }
+    static constexpr ColorFormat BGR_8_8_8_SNORM()             { return make(LAYOUT_8_8_8, SIGN_SNORM, SWIZZLE_BGR1); }
     static constexpr ColorFormat R_24_FLOAT()                  { return make(LAYOUT_24, SIGN_FLOAT, SWIZZLE_R001); }
 
     // 32 bits
@@ -792,7 +823,7 @@ inline constexpr uint32_t makeBGRA8(T r, T g, T b, T a) {
 
 /// This represents a single 1D/2D/3D image in an more complex image structure.
 // Note: avoid using size_t in this structure. So the size of the structure will never change, regardless of compile platform.
-struct RG_API ImagePlaneDesc {
+struct ImagePlaneDesc {
     
     /// pixel format
     ColorFormat format = ColorFormat::UNKNOWN();
@@ -845,7 +876,7 @@ struct RG_API ImagePlaneDesc {
 ///
 /// Represent a complex image with optional mipmap chain
 ///
-struct RG_API ImageDesc {
+struct ImageDesc {
 
     // ****************************
     /// \name member data
@@ -940,7 +971,7 @@ private:
 ///
 /// A basic image class
 ///
-class RG_API RawImage {
+class RawImage {
 
 public:
 
@@ -962,10 +993,10 @@ public:
     const ImagePlaneDesc & desc(size_t layer, size_t level) const { return mDesc.plane(layer, level); }
 
     /// return pointer to pixel buffer.
-    const uint8_t* data() const { return mPixels; }
+    const uint8_t* data() const { return mPixels.get(); }
 
     /// return pointer to pixel buffer.
-    uint8_t* data() { return mPixels; }
+    uint8_t* data() { return mPixels.get(); }
 
     /// return size of the whole image in bytes.
     uint32_t size() const { return mDesc.size; }
@@ -988,8 +1019,8 @@ public:
 
     /// \name methods to return pointer to particular pixel
     //@{
-    const uint8_t* pixel(size_t layer, size_t level, size_t x = 0, size_t y = 0, size_t z = 0) const { return mPixels + mDesc.pixel(layer, level, x, y, z); }
-    uint8_t*       pixel(size_t layer, size_t level, size_t x = 0, size_t y = 0, size_t z = 0)       { return mPixels + mDesc.pixel(layer, level, x, y, z); }
+    const uint8_t* pixel(size_t layer, size_t level, size_t x = 0, size_t y = 0, size_t z = 0) const { return mPixels.get() + mDesc.pixel(layer, level, x, y, z); }
+    uint8_t*       pixel(size_t layer, size_t level, size_t x = 0, size_t y = 0, size_t z = 0)       { return mPixels.get() + mDesc.pixel(layer, level, x, y, z); }
     //@}
 
     /// \name load & save
@@ -1005,7 +1036,12 @@ public:
 
 private:
 
-    uint8_t * mPixels = nullptr;
+    struct FreePixelArray {
+        void operator()(uint8_t * p) {
+            afree(p);
+        }
+    };
+    std::unique_ptr<uint8_t, FreePixelArray> mPixels;
     ImageDesc mDesc;
 };
 

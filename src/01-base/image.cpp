@@ -16,7 +16,7 @@ using namespace rg;
 //
 //
 // -----------------------------------------------------------------------------
-RG_API bool rg::ImagePlaneDesc::valid() const {
+bool rg::ImagePlaneDesc::valid() const {
     // check format
     if (!format.valid()) {
         RG_LOGE("invalid format");
@@ -75,7 +75,7 @@ RG_API bool rg::ImagePlaneDesc::valid() const {
 //
 //
 // -----------------------------------------------------------------------------
-RG_API rg::ImagePlaneDesc rg::ImagePlaneDesc::make(ColorFormat format, size_t width, size_t height, size_t depth, size_t step, size_t pitch, size_t slice, size_t alignment) {
+rg::ImagePlaneDesc rg::ImagePlaneDesc::make(ColorFormat format, size_t width, size_t height, size_t depth, size_t step, size_t pitch, size_t slice, size_t alignment) {
 
     if (!format.valid()) {
         RG_LOGE("invalid color format: 0x%X", format.u32);
@@ -119,7 +119,7 @@ RG_API rg::ImagePlaneDesc rg::ImagePlaneDesc::make(ColorFormat format, size_t wi
 //
 //
 // -----------------------------------------------------------------------------
-RG_API bool rg::ImageDesc::valid() const {
+bool rg::ImageDesc::valid() const {
 
     if (planes.size() == 0) {
         // supposed to be an empty descriptor
@@ -154,7 +154,7 @@ RG_API bool rg::ImageDesc::valid() const {
 //
 //
 // -----------------------------------------------------------------------------
-RG_API void rg::ImageDesc::reset(const ImagePlaneDesc & basemap, uint32_t layers_, uint32_t levels_) {
+void rg::ImageDesc::reset(const ImagePlaneDesc & basemap, uint32_t layers_, uint32_t levels_) {
 
     if (!basemap.valid()) {
         planes.clear();
@@ -209,7 +209,7 @@ rg::RawImage::RawImage(ImageDesc&& desc, const void * initialContent, size_t ini
 
     // allocate pixel buffer
     size_t imageSize = size();
-    mPixels = (uint8_t*)aligned_alloc(mDesc.plane(0, 0).rowAlignment, imageSize); // TODO: LSM of all planes' alignment?
+    mPixels.reset((uint8_t*)aalloc(mDesc.plane(0, 0).rowAlignment, imageSize)); // TODO: LSM of all planes' alignment?
     if (!mPixels) {
         return;
     }
@@ -221,7 +221,7 @@ rg::RawImage::RawImage(ImageDesc&& desc, const void * initialContent, size_t ini
         } else if (initialContentSizeInbytes != imageSize) {
             RG_LOGW("incoming pixel buffer size does not equal to calculated image size.");
         }
-        memcpy(mPixels, initialContent, std::min(imageSize, initialContentSizeInbytes));
+        memcpy(mPixels.get(), initialContent, std::min(imageSize, initialContentSizeInbytes));
     }
 }
 

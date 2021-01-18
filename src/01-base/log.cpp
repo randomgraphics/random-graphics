@@ -18,6 +18,7 @@ rg::log::Controller::Globals::~Globals() {
         delete iter.second;
     }
     instances.clear();
+    delete root;
 }
 
 rg::log::Controller::Globals rg::log::Controller::g;

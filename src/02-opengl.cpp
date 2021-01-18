@@ -1,4 +1,6 @@
+#ifndef RG_INTERNAL
 #define RG_INTERNAL
+#endif
 #include "rg/opengl.h"
 #include <sstream>
 #include <fstream>
@@ -124,15 +126,17 @@ void rg::gl::enableDebugRuntime()
         }
     };
 
-    RG_GLCHK(glDebugMessageCallback(&OGLDebugOutput::messageCallback, nullptr));
-    RG_GLCHK(glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS));
-    RG_GLCHK(glDebugMessageControl(
+    if (GLAD_GL_ARB_debug_output) {
+        RG_GLCHK(glDebugMessageCallbackARB(&OGLDebugOutput::messageCallback, nullptr));
+        RG_GLCHK(glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB));
+        RG_GLCHK(glDebugMessageControlARB(
             GL_DONT_CARE, // source
             GL_DONT_CARE, // type
             GL_DONT_CARE, // severity
             0, // count
             nullptr, // ids
             GL_TRUE));
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -146,11 +150,11 @@ std::string rg::gl::printGLInfo(bool printExtensionList)
     const char* version = (const char*)glGetString(GL_VERSION);
     const char* renderer = (const char*)glGetString(GL_RENDERER);
     const char* glsl = (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
-    // GLint maxsls = -1, maxslsFast = -1;
-    // if (GLAD_GL_EXT_shader_pixel_local_storage) {
-    //     glGetIntegerv(GL_MAX_SHADER_PIXEL_LOCAL_STORAGE_SIZE_EXT, &maxsls);
-    //     glGetIntegerv(GL_MAX_SHADER_PIXEL_LOCAL_STORAGE_FAST_SIZE_EXT, &maxslsFast);
-    // }
+    GLint maxsls = -1, maxslsFast = -1;
+    if (GLAD_GL_EXT_shader_pixel_local_storage) {
+        glGetIntegerv(GL_MAX_SHADER_PIXEL_LOCAL_STORAGE_SIZE_EXT, &maxsls);
+        glGetIntegerv(GL_MAX_SHADER_PIXEL_LOCAL_STORAGE_FAST_SIZE_EXT, &maxslsFast);
+    }
     info <<
         "\n\n"
         "===================================================\n"
@@ -171,10 +175,10 @@ std::string rg::gl::printGLInfo(bool printExtensionList)
         "       Max CS WorkGroup size : " << getInt(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0) << ","
         << getInt(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1) << ","
         << getInt(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2) << "\n"
-        << "      Max CS WorkGroup count : " << getInt(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0) << ","
+        "      Max CS WorkGroup count : " << getInt(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0) << ","
         << getInt(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1) << ","
         << getInt(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2) << "\n"
-        //<< "    Max shader local storage : total=" << maxsls << ", fast=" << maxslsFast << "\n"
+        "    Max shader local storage : total=" << maxsls << ", fast=" << maxslsFast << "\n"
         ;
 
     if (printExtensionList) {
@@ -197,6 +201,47 @@ std::string rg::gl::printGLInfo(bool printExtensionList)
     // done
     return info.str();
 }
+
+// -----------------------------------------------------------------------------
+//
+#if RG_LINUX
+const char * gl::eglError2String(EGLint err) {
+    switch(err) {
+        case EGL_SUCCESS:
+            return "The last function succeeded without error.";
+        case EGL_NOT_INITIALIZED:
+            return "EGL is not initialized, or could not be initialized, for the specified EGL display connection.";
+        case EGL_BAD_ACCESS:
+            return "EGL cannot access a requested resource (for example a context is bound in another thread).";
+        case EGL_BAD_ALLOC:
+            return "EGL failed to allocate resources for the requested operation.";
+        case EGL_BAD_ATTRIBUTE:
+            return "An unrecognized attribute or attribute value was passed in the attribute list.";
+        case EGL_BAD_CONTEXT:
+            return "An EGLContext argument does not name a valid EGL rendering context.";
+        case EGL_BAD_CONFIG:
+            return "An EGLConfig argument does not name a valid EGL frame buffer configuration.";
+        case EGL_BAD_CURRENT_SURFACE:
+            return "The current surface of the calling thread is a window, pixel buffer or pixmap that is no longer valid.";
+        case EGL_BAD_DISPLAY:
+            return "An EGLDisplay argument does not name a valid EGL display connection.";
+        case EGL_BAD_SURFACE:
+            return "An EGLSurface argument does not name a valid surface (window, pixel buffer or pixmap) configured for GL rendering.";
+        case EGL_BAD_MATCH:
+            return "Arguments are inconsistent (for example, a valid context requires buffers not supplied by a valid surface).";
+        case EGL_BAD_PARAMETER:
+            return "One or more argument values are invalid.";
+        case EGL_BAD_NATIVE_PIXMAP:
+            return "A NativePixmapType argument does not refer to a valid native pixmap.";
+        case EGL_BAD_NATIVE_WINDOW:
+            return "A NativeWindowType argument does not refer to a valid native window.";
+        case EGL_CONTEXT_LOST:
+            return "A power management event has occurred. The application must destroy all contexts and reinitialise OpenGL ES state and objects to continue rendering.";
+        default:
+            return "unknown error";
+    }
+}
+#endif
 
 // -----------------------------------------------------------------------------
 //

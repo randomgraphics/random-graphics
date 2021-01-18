@@ -1,6 +1,40 @@
 #include "pch.h"
 #include <iomanip>
 #include <stdarg.h>
+#include <signal.h>
+
+// -----------------------------------------------------------------------------
+//
+[[noreturn]] void rg::rip() {
+    RG_LOG(, F, backtrace().c_str());
+    raise(SIGSEGV);
+}
+
+// -----------------------------------------------------------------------------
+//
+std::string rg::backtrace() {
+    return {};
+}
+
+// -----------------------------------------------------------------------------
+//
+void * rg::aalloc(size_t a, size_t s) {
+#if RG_MSWIN
+    return _aligned_malloc(s, a);
+#else
+    return aligned_alloc(a, s);
+#endif
+}
+
+// -----------------------------------------------------------------------------
+//
+void rg::afree(void * p) {
+#if RG_MSWIN
+    _aligned_free(p);
+#else
+    ::free(p);
+#endif
+}
 
 // -----------------------------------------------------------------------------
 //
