@@ -1,7 +1,9 @@
 if (RG_BUILD_STATIC)
     set(type STATIC)
+    set(viz  PUBLIC)
 else()
     set(type SHARED)
+    set(viz  PRIVATE)
 endif()
 
 set(sources
@@ -23,3 +25,6 @@ target_compile_definitions(random-graphics
         RG_INTERNAL=1
 )
 target_include_directories(random-graphics PUBLIC ../inc)
+if (UNIX)
+    target_link_libraries(random-graphics ${viz} atomic)
+endif()
