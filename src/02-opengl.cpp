@@ -613,7 +613,7 @@ bool rg::gl::SimpleTextureCopy::init() {
     {
         auto & prog2d = _programs[GL_TEXTURE_2D];
         auto ps2d = formatstr(pscode, "sampler2D", "u_uv");
-        if (!prog2d.program.loadVsPs(vscode, pscode)) return false;
+        if (!prog2d.program.loadVsPs(vscode, ps2d)) return false;
         prog2d.tex0Binding = prog2d.program.getUniformBinding("u_tex0");
     }
 
@@ -621,7 +621,7 @@ bool rg::gl::SimpleTextureCopy::init() {
     {
         auto & prog2darray = _programs[GL_TEXTURE_2D_ARRAY];
         auto ps2darray = formatstr(pscode, "sampler2DArray", "vec3(u_uv, 0.)");
-        if (!prog2darray.program.loadVsPs(vscode, pscode)) return false;
+        if (!prog2darray.program.loadVsPs(vscode, ps2darray)) return false;
         prog2darray.tex0Binding = prog2darray.program.getUniformBinding("u_tex0");
     }
 

@@ -44,11 +44,11 @@
 
 /// Log macros
 //@{
-#define RG_LOG(tag, severity, ...) do { \
+#define RG_LOG(tag__, severity, ...) do { \
     using namespace rg::log::macros; \
-    if (rg::log::Controller::getInstance(tag)->enabled(severity)) { \
-        rg::log::Helper h((int)severity, __FILE__, __LINE__, __FUNCTION__); \
-        h(__VA_ARGS__); \
+    auto ctrl__ = rg::log::Controller::getInstance(tag__); \
+    if (ctrl__->enabled(severity)) { \
+        rg::log::Helper(ctrl__->tag().c_str(), __FILE__, __LINE__, __FUNCTION__, (int)severity)(__VA_ARGS__); \
     } } while(0)
 #define RG_LOGE(...) RG_LOG(, E, __VA_ARGS__)
 #define RG_LOGW(...) RG_LOG(, W, __VA_ARGS__)
@@ -155,7 +155,26 @@
 
 namespace rg {
 
-namespace log {
+struct LogDesc {
+    const char * tag;
+    const char * file;
+    int          line;
+    const char * func;
+    int          severity;
+};
+
+struct LogCallback {
+    void (*func)(void * context, const LogDesc & desc, const char * text) = nullptr;
+    void * context = nullptr;
+    void operator()(const LogDesc & desc, const char * text) const { func(context, desc, text); }
+};
+
+/// Set log callback.
+/// \param lc set to null to restore to default callback.
+/// \return returns the current callback function pointer.
+RG_API LogCallback setLogCallback(LogCallback lc);
+
+namespace log { // namespace for log implementation details
 
 class Controller {
 
@@ -171,7 +190,7 @@ class Controller {
     std::string  _tag;
     bool         _enabled = true;
 
-    Controller(const char * name) : _tag(name) {}
+    Controller(const char * tag) : _tag(tag) {}
     
     ~Controller() = default;
 
@@ -184,6 +203,8 @@ public:
     bool enabled(int severity) const {
         return _enabled && severity <= g.severity;
     }
+
+    const std::string & tag() const { return _tag; }
 };
 
 namespace macros {
@@ -199,9 +220,18 @@ inline Controller * c(const char * str = nullptr) {
     return Controller::getInstance(str);
 }
 
-inline std::stringstream s(const char * str) {
+struct LogStream {
     std::stringstream ss;
-    ss << str;
+    template<typename T>
+    LogStream & operator<<(T && t) {
+        ss << std::forward<T>(t);
+        return *this;
+    }
+};
+
+inline LogStream s(const char * str) {
+    LogStream ss;
+    ss.ss << str;
     return ss;
 }
 
@@ -209,14 +239,7 @@ inline std::stringstream s(const char * str) {
 
 class Helper {
 
-    struct Info {
-        int          severity;
-        const char * file;
-        int          line;
-        const char * func;
-    };
-
-    Info _info;
+    LogDesc _desc;
 
     const char * formatlog(const char *, ...);
 
@@ -225,7 +248,7 @@ class Helper {
 public:
 
     template<class... Args>
-    Helper(Args&&... args) : _info{args...} {
+    Helper(Args&&... args) : _desc{args...} {
     }
 
     template<class... Args>
@@ -233,19 +256,21 @@ public:
         post(formatlog(format, std::forward<Args>(args)...));
     }
 
-    void operator()(const std::basic_ostream<char> & s) {
-        post(formatlog(reinterpret_cast<const std::stringstream&>(s).str().c_str()));
+    void operator()(const macros::LogStream & s) {
+        post(formatlog(s.ss.str().c_str()));
     }
 
     template<class... Args>
     void operator()(Controller * c, const char * format, Args&&... args) {
-        if (Controller::getInstance(c)->enabled(_info.severity)) {
+        if (Controller::getInstance(c)->enabled(_desc.severity)) {
+            _desc.tag = c->tag.c_str();
             operator()(format, std::forward<Args>(args)...);
         }
     }
 
-    void operator()(Controller * c, const std::basic_ostream<char> & s) {
-        if (Controller::getInstance(c)->enabled(_info.severity)) {
+    void operator()(Controller * c, const macros::LogStream & s) {
+        if (Controller::getInstance(c)->enabled(_desc.severity)) {
+            _desc.tag = c->tag().c_str();
             operator()(s);
         }
     }

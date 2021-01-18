@@ -8,6 +8,7 @@
 [[noreturn]] void rg::rip() {
     RG_LOG(, F, backtrace().c_str());
     raise(SIGSEGV);
+    throw "rip";
 }
 
 // -----------------------------------------------------------------------------
@@ -38,18 +39,28 @@ void rg::afree(void * p) {
 
 // -----------------------------------------------------------------------------
 //
+template<class PRINTF>
+static void printToVector(PRINTF p, std::vector<char> & buffer) {
+    if (buffer.empty()) buffer.resize(1);
+    int n = p();
+    if (n < 0) return; // printf error
+    if ((size_t)(n + 1) > buffer.size()) {
+        buffer.resize((size_t)n + 1);
+    }
+    n = p();
+    RG_ASSERT((size_t)n < buffer.size());
+    buffer[n] = 0;
+}
+
+// -----------------------------------------------------------------------------
+//
 const char * rg::formatstr(const char * format, ...) {
-    thread_local static char buf1[16384];
     va_list args;
     va_start(args, format);
-#ifdef _MSC_VER
-    _vsnprintf_s(buf1, std::size(buf1), _TRUNCATE, format, args);
-#else
-    vsnprintf(buf1, std::size(buf1), format, args);
-#endif
+    thread_local static std::vector<char> buf1;
+    printToVector([&]{ return vsnprintf(buf1.data(), std::size(buf1), format, args); }, buf1);
     va_end(args);
-    buf1[std::size(buf1)-1] = 0;
-    return buf1;
+    return buf1.data();
 }
 
 // -----------------------------------------------------------------------------

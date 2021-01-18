@@ -585,6 +585,8 @@ STBIDEF int   stbi_zlib_decode_noheader_buffer(char *obuffer, int olen, const ch
    #endif
 #else
    #define stbi_inline __forceinline
+   #pragma warning(disable: 4456) // declaration of 'xxx' hides previous local declaration
+   #pragma warning(disable: 4457) // declaration of 'xxx' hides function parameter
 #endif
 
 #ifndef STBI_NO_THREAD_LOCALS
