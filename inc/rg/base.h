@@ -263,7 +263,7 @@ public:
     template<class... Args>
     void operator()(Controller * c, const char * format, Args&&... args) {
         if (Controller::getInstance(c)->enabled(_desc.severity)) {
-            _desc.tag = c->tag.c_str();
+            _desc.tag = c->tag().c_str();
             operator()(format, std::forward<Args>(args)...);
         }
     }
