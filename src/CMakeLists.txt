@@ -12,9 +12,21 @@ set(sources
     01-base/image.cpp
 )
 
+find_package(OpenGL)
 if (OPENGL_FOUND)
-    list(APPEND sources 02-opengl.cpp)
-    list(APPEND sources 02-glad/glad.c)
+    list(APPEND sources 02-opengl/opengl.cpp)
+    list(APPEND sources 02-opengl/glad/glad.c)
+    if (WIN32)
+        list(APPEND sources 02-opengl/glad/glad_wgl.c)
+    endif()
+    if (UNIX)
+        list(APPEND sources 02-opengl/glad/glad_egl.c)
+        list(APPEND sources 02-opengl/glad/glad_glx.c)
+    endif()
+endif()
+
+find_package(Vulkan)
+if (VULKAN_FOUND)
 endif()
 
 add_library(random-graphics ${type} ${sources})

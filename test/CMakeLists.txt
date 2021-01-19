@@ -1,2 +1,6 @@
-add_executable(test test.cpp)
-target_link_libraries(test random-graphics)
+add_executable(unit-test unit-test.cpp)
+target_link_libraries(unit-test random-graphics)
+
+find_package(Qt6 COMPONENTS Widgets)
+add_executable(gldemo gldemo.cpp)
+target_link_libraries(gldemo random-graphics Qt::Widgets)

@@ -10,10 +10,6 @@
 #include <iomanip>
 #include <cmath>
 
-#ifdef __ANDROID__
-#include <dlfcn.h>
-#endif
-
 using namespace rg;
 using namespace rg::gl;
 
@@ -204,7 +200,7 @@ std::string rg::gl::printGLInfo(bool printExtensionList)
 
 // -----------------------------------------------------------------------------
 //
-#if RG_LINUX
+#if RG_HAS_EGL
 const char * gl::eglError2String(EGLint err) {
     switch(err) {
         case EGL_SUCCESS:
@@ -753,3 +749,500 @@ std::string rg::gl::GpuTimestamps::print(const char * ident) const {
     }
     return ss.str();
 }
+
+#if RG_HAS_EGL
+#define EGLCHK_R(x, returnValueWhenFailed) if (!(x)) { \
+    RG_LOGE(#x " failed: %s", gl::eglError2String(eglGetError())); \
+    return (returnValueWhenFailed); \
+} else void(0)
+#define EGLCHK(x) if (!(x)) { RG_RIP(#x " failed: %s", gl::eglError2String(eglGetError())); } else void(0)
+class gl::RenderContext::Impl
+{
+public:
+    Impl(gl::RenderContext::WindowHandle window, bool shared) : _window(NativeWindowType(window)) {
+        if (shared) initSharedContext();
+        else initStandaloneContext();
+    }
+
+    ~Impl() { destroy(); }
+
+    void makeCurrent() {
+        if (!eglMakeCurrent(_disp, _surf, _surf, _rc)) {
+            RG_LOGE("Failed to set current EGL context.");
+        }
+    }
+
+    void swapBuffers() {
+        if (!eglSwapBuffers(_disp, _surf)) {
+            int error = eglGetError();
+            RG_LOGE("Post record render swap fail. ERROR: %x", error);
+        }
+    }
+
+private:
+
+    //The context represented by this object.
+    bool _new_disp = false;
+    EGLDisplay _disp = 0;
+    EGLContext _rc = 0;
+    EGLSurface _surf = 0;
+    NativeWindowType _window = (NativeWindowType)nullptr;
+
+    void initSharedContext() {
+        _disp = eglGetCurrentDisplay();
+        auto currentRC = eglGetCurrentContext();
+        if (!_disp || !currentRC) RG_RIP("no current display and/or EGL context found.");
+
+        auto currentConfig = getCurrentConfig(_disp, currentRC);
+        if (!currentConfig) RG_RIP("failed to get EGL config.");
+
+        if (_window) {
+            RG_CHK(_surf = eglCreateWindowSurface(_disp, getCurrentConfig(_disp, currentRC), _window, nullptr));
+        } else {
+            EGLint pbufferAttribs[] = {
+                    EGL_WIDTH, 1,
+                    EGL_HEIGHT, 1,
+                    EGL_NONE,
+            };
+            RG_CHK(_surf = eglCreatePbufferSurface(_disp, currentConfig, pbufferAttribs));
+        }
+
+        // create context
+        EGLint contextAttribs[] = {
+                EGL_CONTEXT_CLIENT_VERSION, 3,
+#ifdef _DEBUG
+                EGL_CONTEXT_FLAGS_KHR, EGL_CONTEXT_OPENGL_DEBUG_BIT_KHR,
+#endif
+                EGL_NONE,
+        };
+        RG_CHK(_rc = eglCreateContext(_disp, currentConfig, currentRC,  contextAttribs));
+    }
+
+    void initStandaloneContext() {
+        _new_disp = true;
+        _disp = findBestHardwareDisplay();
+        if (0 == _disp) { EGLCHK(_disp = eglGetDisplay(EGL_DEFAULT_DISPLAY)); }
+        EGLCHK(eglInitialize(_disp, nullptr, nullptr));
+        const EGLint configAttribs[] = {
+                EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
+                EGL_BLUE_SIZE, 8,
+                EGL_GREEN_SIZE, 8,
+                EGL_RED_SIZE, 8,
+                EGL_DEPTH_SIZE, 8,
+                EGL_NONE
+        };
+        EGLint numConfigs;
+        EGLConfig config;
+        EGLCHK(eglChooseConfig(_disp, configAttribs, &config, 1, &numConfigs));
+        RG_CHK(numConfigs > 0);
+        EGLint pbufferAttribs[] = {
+                EGL_WIDTH, 1,
+                EGL_HEIGHT, 1,
+                EGL_NONE,
+        };
+        EGLCHK(_surf = eglCreatePbufferSurface(_disp, config, pbufferAttribs));
+        RG_CHK(_surf);
+#ifdef __ANDROID__
+        EGLCHK(eglBindAPI(EGL_OPENGL_ES_API));
+#else
+        EGLCHK(eglBindAPI(EGL_OPENGL_API));
+#endif
+        EGLint contextAttribs[] = {
+                EGL_CONTEXT_CLIENT_VERSION, 3,
+#ifdef _DEBUG
+                EGL_CONTEXT_FLAGS_KHR, EGL_CONTEXT_OPENGL_DEBUG_BIT_KHR,
+#endif
+                EGL_NONE,
+        };
+        RG_CHK(_rc = eglCreateContext(_disp, config, 0, contextAttribs));
+    }
+
+    void destroy() {
+        if (_surf) eglDestroySurface(_disp, _surf), _surf = 0;
+        if (_rc) eglDestroyContext(_disp, _rc), _rc = 0;
+        if (_new_disp) eglTerminate(_disp), _new_disp = false;
+        _disp = 0;
+    }
+
+    static EGLConfig getCurrentConfig(EGLDisplay d, EGLContext c) {
+        EGLint currentConfigID = 0;
+        EGLCHK_R(eglQueryContext(d, c, EGL_CONFIG_ID, &currentConfigID), 0);
+        EGLint numConfigs;
+        EGLCHK_R(eglGetConfigs(d, nullptr, 0, &numConfigs), 0);
+        std::vector<EGLConfig> configs(numConfigs);
+        EGLCHK_R(eglGetConfigs(d, configs.data(), numConfigs, &numConfigs), 0);
+        for(auto config : configs) {
+            EGLint id;
+            eglGetConfigAttrib(d, config, EGL_CONFIG_ID, &id);
+            if (id == currentConfigID) {
+                return config;
+            }
+        }
+        RG_LOGE("Couldn't find current EGL config.");
+        return 0;
+    }
+
+    // Return the display that represents the best GPU hardware available on current system.
+    static EGLDisplay findBestHardwareDisplay() {
+
+        // query required extension
+        auto eglQueryDevicesEXT = reinterpret_cast<PFNEGLQUERYDEVICESEXTPROC>(eglGetProcAddress("eglQueryDevicesEXT"));
+        auto eglGetPlatformDisplayExt = reinterpret_cast<PFNEGLGETPLATFORMDISPLAYEXTPROC>(eglGetProcAddress("eglGetPlatformDisplayEXT"));
+        if (!eglQueryDevicesEXT || !eglGetPlatformDisplayExt) {
+            RG_LOGW("Can't query GPU devices, since required EGL extension(s) are missing. Fallback to default display.");
+            return 0;
+        }
+
+        EGLDeviceEXT devices[32];
+        EGLint num_devices;
+        EGLCHK_R(eglQueryDevicesEXT(32, devices, &num_devices), 0);
+        if (num_devices == 0) {
+            RG_LOGE("No EGL devices found.");
+            return 0;
+        }
+        RG_LOGI("Total %d EGL devices found.", num_devices);
+
+        // try find the NVIDIA device
+        EGLDisplay nvidia = 0;
+        for (int i = 0; i < num_devices; ++i) {
+            auto display = eglGetPlatformDisplayExt(EGL_PLATFORM_DEVICE_EXT, devices[i], nullptr);
+            EGLint major, minor;
+            eglInitialize(display, &major, &minor);
+            auto vendor = eglQueryString(display, EGL_VENDOR);
+            if (vendor && 0 == strcmp(vendor, "Qualcomm")) nvidia = display;
+            eglTerminate(display);
+        }
+
+        return nvidia;
+    }
+};
+#else
+#include <windows.h>
+static inline const char * getLastErrorString() {
+    int err__ = GetLastError();
+    static char info[4096];
+    int n = ::FormatMessageA(
+        FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL,
+        err__,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        info, 4096, NULL );
+    info[4095] = 0;
+    while (n > 0 && '\n' != info[n-1] ) --n;
+    info[n] = 0;
+    return info;
+}
+#pragma warning(disable: 4706) // assignment within conditional expression
+#define CHK_MSW(x, y) if (!(x)) { RG_LOGE(#x " failed: %s", getLastErrorString()); y; } else void(0)
+
+class gl::RenderContext::Impl {
+public:
+
+    Impl(const CreationParameters & cp) : _cp(cp) {
+        bool ok = create();
+        if (!ok) destroy();
+    }
+
+    ~Impl() {
+        destroy();
+    }
+
+    void makeCurrent() {
+        if (!_rc) {
+            RG_LOGE("shared GL context is not properly initialized.");
+            return;
+        }
+
+        if (!wglMakeCurrent(_effectiveDC, _rc)) {
+            RG_LOGE("wglMakeCurrent() failed.");
+        }
+    }
+
+    void swapBuffers() {
+        CHK_MSW(::SwapBuffers(_effectiveDC),);
+    }
+
+private:
+
+    bool create() {
+
+        if (_cp.window) {
+            HWND w = (HWND)_cp.window;
+            if (!IsWindow(w)) return failed("not a valid window handle.");
+            if (!_windowDC.init(w)) return false;
+        } else {
+            if (!_dw.init()) return false;
+            if (!_windowDC.init(_dw)) return false;
+        }
+
+        // determin pixel format
+        auto pf = determinePixelFormat();
+        if (0 == pf) return false;
+
+        // determine effective DC
+        if (_cp.window) {
+            _effectiveDC = _windowDC;
+        }
+        else {
+            // create pbuffer
+            CHK_MSW(_pbuffer = wglCreatePbufferEXT(_windowDC, pf, (int)_cp.pbufferW, (int)_cp.pbufferH, nullptr), return false);
+            CHK_MSW(_pbufferDC = wglGetPbufferDCEXT(_pbuffer), return false);
+            _effectiveDC = _pbufferDC;
+        }
+
+        // Try creating a formal context using wglCreateContextAttribsARB
+        const GLint attributes[] = {
+            WGL_CONTEXT_FLAGS_ARB,
+            _cp.debug ? WGL_CONTEXT_DEBUG_BIT_ARB : 0,
+            0,
+        };
+        _rc = wglCreateContextAttribsARB(_effectiveDC, NULL, attributes);
+        if (!_rc) return failed("wglCreateContextAttribsARB failed.");
+
+        if (_cp.shared) {
+            auto rc = wglGetCurrentContext();
+            if (rc) CHK_MSW( wglShareLists(rc, _rc),  return false);
+        }
+
+        // done
+        return true;
+    }
+
+    class AutoDC {
+        HWND _w = 0;
+        HDC _dc = 0;
+    public:
+        ~AutoDC() { destroy(); }
+        bool init(HWND w) {
+            if (!IsWindow(w)) {
+                return false;
+            }
+            CHK_MSW(_dc = ::GetDC(w), return false);
+            return true;
+        }
+        void destroy() {
+            if (_dc) ::ReleaseDC(_w, _dc), _dc = 0;
+        }
+        operator HDC() const { return _dc; }
+    };
+
+    class TempContext {
+        HGLRC hrc;
+    public:
+        TempContext() : hrc(0) {}
+        ~TempContext() { quit(); }
+        bool init(HDC hdc) {
+            PIXELFORMATDESCRIPTOR pd = {
+                sizeof(PIXELFORMATDESCRIPTOR),
+                1,
+                PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,    // Flags
+                PFD_TYPE_RGBA,        // The kind of framebuffer. RGBA or palette.
+                32,                   // Colordepth of the framebuffer.
+                0, 0, 0, 0, 0, 0,
+                0,
+                0,
+                0,
+                0, 0, 0, 0,
+                24,                   // Number of bits for the depthbuffer
+                8,                    // Number of bits for the stencilbuffer
+                0,                    // Number of Aux buffers in the framebuffer.
+                PFD_MAIN_PLANE,
+                0,
+                0, 0, 0
+            };
+            int pf = ::ChoosePixelFormat(hdc, &pd);
+            CHK_MSW(::SetPixelFormat(hdc, pf, &pd), return false);
+            CHK_MSW(hrc = ::wglCreateContext( hdc ), return false);
+            CHK_MSW(::wglMakeCurrent(hdc, hrc), return false);
+            return true;
+        }
+        void quit() {
+            if (hrc) {
+                ::wglMakeCurrent(0, 0);
+                ::wglDeleteContext(hrc);
+                hrc = 0;
+            }
+        }
+    };
+
+    struct DummyWindow {
+        HWND wnd = 0;
+        ~DummyWindow() { destroy(); }
+        bool init() {
+            destroy();
+            auto className = L"Random Graphics Dummy Window Class";
+            WNDCLASSW wc = {};
+            wc.lpfnWndProc    = (WNDPROC)&DefWindowProcW;
+            wc.cbClsExtra     = 0;
+            wc.cbWndExtra     = 0;
+            wc.hInstance      = (HINSTANCE)GetModuleHandleW(nullptr);
+            wc.hIcon          = LoadIcon (0, IDI_APPLICATION);
+            wc.hCursor        = LoadCursor (0,IDC_ARROW);
+            wc.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
+            wc.lpszMenuName   = 0;
+            wc.lpszClassName  = className;
+            wc.hIcon          = LoadIcon(0, IDI_APPLICATION);
+            CHK_MSW(RegisterClassW(&wc), return false);
+            CHK_MSW(wnd = CreateWindowW(className, L"dummy window", 0, CW_USEDEFAULT, CW_USEDEFAULT, 1, 1, nullptr, 0, wc.hInstance, 0), return false);
+            return true;
+        }
+        void destroy() {
+            if (wnd) ::DestroyWindow(wnd), wnd = 0;
+        }
+        operator HWND() const { return wnd; }
+    };
+
+    template <class... Args>
+    static bool failed(Args&&... args) {
+        RG_LOGE(args...);
+        return false;
+    }
+
+    int determinePixelFormat() {
+        // create a temporary context
+        TempContext tc;
+        if (!tc.init(_windowDC)) return 0;
+
+        // TODO: only do it once.
+        if (!gladLoadWGL(_windowDC)) {
+            RG_LOGE("fail to load WGL extensions.");
+            return 0;
+        }
+
+        // create attribute list
+        std::map<GLint, GLint> attribs = {
+            { WGL_SUPPORT_OPENGL_ARB, GL_TRUE },
+            { WGL_ACCELERATION_ARB, WGL_GENERIC_ACCELERATION_ARB },
+            { WGL_COLOR_BITS_ARB, 32 },
+            { WGL_DEPTH_BITS_ARB, 24 },
+            { WGL_STENCIL_BITS_ARB, 8 },
+        };
+        if (_cp.window) {
+            attribs[WGL_DRAW_TO_WINDOW_ARB] = GL_TRUE;
+        } else {
+            attribs[WGL_DRAW_TO_PBUFFER_ARB] = GL_TRUE;
+        }
+
+        // choose the pixel format
+        std::vector<GLint> attribList;
+        attribList.reserve(attribs.size() + 1);
+        for(auto [k, v]: attribs) {
+            attribList.push_back(k);
+            attribList.push_back(v);
+        }
+        attribList.push_back(0);
+        int pf = 0;
+        uint32_t count = 0;
+        CHK_MSW(wglChoosePixelFormatARB(_windowDC, attribList.data(), nullptr, 1, &pf, &count), return false);
+
+        // done
+        return pf;
+    }
+
+    void destroy()
+    {
+        if (_rc) wglDeleteContext(_rc), _rc = 0;
+        if (_pbufferDC) wglReleasePbufferDCEXT(_pbuffer, _pbufferDC), _pbufferDC = 0;
+        if (_pbuffer) wglDestroyPbufferEXT(_pbuffer), _pbuffer = 0;
+        _windowDC.destroy();
+        _dw.destroy();
+    }
+
+private:
+    const CreationParameters _cp;
+    DummyWindow _dw;
+    AutoDC      _windowDC;
+    HPBUFFEREXT _pbuffer = 0;
+    HDC         _pbufferDC = 0;
+    HDC         _effectiveDC = 0;
+    HGLRC       _rc = 0;
+};
+#endif
+
+gl::RenderContext::RenderContext(const CreationParameters & cp) {
+    RenderContextStack rcs;
+    rcs.push();
+    _impl = new Impl(cp);
+    rcs.pop();
+}
+gl::RenderContext::~RenderContext() { delete _impl; _impl = nullptr; }
+gl::RenderContext & gl::RenderContext::operator=(RenderContext && that) {
+    if (this != &that) {
+        delete _impl;
+        _impl = that._impl;
+        that._impl = nullptr;
+    }
+    return *this;
+}
+void gl::RenderContext::makeCurrent() { if(_impl) _impl->makeCurrent(); }
+void gl::RenderContext::swapBuffers() { if(_impl) _impl->swapBuffers(); }
+
+class gl::RenderContextStack::Impl
+{
+    struct OpenGLRC {
+#if RG_HAS_EGL
+        EGLDisplay display;
+        EGLSurface drawSurface;
+        EGLSurface readSurface;
+        EGLContext context;
+        void store() {
+            display = eglGetCurrentDisplay();
+            drawSurface = eglGetCurrentSurface(EGL_DRAW);
+            readSurface = eglGetCurrentSurface(EGL_READ);
+            context = eglGetCurrentContext();
+        }
+        void restore() const {
+            if (display && context) {
+                if (!eglMakeCurrent(display, drawSurface, readSurface, context)) {
+                    EGLint error = eglGetError();
+                    RG_LOGE("Failed to restore EGL context. ERROR: %x", error);
+                }
+            }
+        }
+#else
+        HGLRC rc;
+        HDC dc;
+        void store() {
+            rc = wglGetCurrentContext();
+            dc = wglGetCurrentDC();
+        }
+        void restore() {
+            wglMakeCurrent(dc, rc);
+        }
+#endif
+    };
+
+    std::stack<OpenGLRC> _stack;
+
+public:
+
+    ~Impl() {
+        while(_stack.size() > 1) _stack.pop();
+        if (1 == _stack.size()) pop();
+        RG_ASSERT(_stack.empty());
+    }
+
+    void push() {
+        _stack.push({});
+        _stack.top().store();
+
+    }
+
+    void apply() {
+        if (!_stack.empty()) {
+            _stack.top().restore();
+        }
+    }
+
+    void pop() {
+        if (!_stack.empty()) {
+            _stack.top().restore();
+            _stack.pop();
+        }
+    }
+};
+gl::RenderContextStack::RenderContextStack() : _impl(new Impl()) {}
+gl::RenderContextStack::~RenderContextStack() { delete _impl; }
+void gl::RenderContextStack::push() { _impl->push(); }
+void gl::RenderContextStack::apply() { _impl->apply(); }
+void gl::RenderContextStack::pop() { _impl->pop(); }

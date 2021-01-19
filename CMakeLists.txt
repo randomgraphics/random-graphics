@@ -13,8 +13,6 @@ elseif (GCC)
     add_compile_options(-Wall -Wextra -Werror)
 endif()
 
-find_package(OpenGL)
-
 add_subdirectory(src)
 
 if (RG_BUILD_TEST)

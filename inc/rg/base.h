@@ -27,8 +27,10 @@
 #if defined(_WIN32)
 #define RG_MSWIN 1
 #elif defined(__APPLE__)
+#define RG_UNIX_LIKE 1
 #define RG_DARWIN 1
 #elif defined(__linux__)
+#define RG_UNIX_LIKE 1
 #define RG_LINUX 1
 #ifdef __ANDROID__
 #define RG_ANDROID 1

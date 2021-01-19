@@ -16,7 +16,8 @@
 #endif
 #if RG_MSWIN
 #include <glad/glad_wgl.h>
-#elif RG_LINUX
+#elif RG_UNIX_LIKE
+#define RG_HAS_EGL 1
 #include <glad/glad.h>
 #include <glad/glad_egl.h>
 #include <glad/glad_glx.h>
@@ -96,7 +97,7 @@ inline GLint getInt(GLenum name, GLint i)
 
 // -----------------------------------------------------------------------------
 //
-#if RG_LINUX
+#if RG_HAS_EGL
 const char * eglError2String(EGLint err);
 #endif
 
@@ -1038,6 +1039,59 @@ private:
     std::vector<Query> _marks;
     size_t _count = 0;
     bool _started = false;
+};
+
+// -----------------------------------------------------------------------------
+/// Helper class to initialize OpenGL render context
+class RenderContext {
+    class Impl;
+    Impl * _impl;
+public:
+    using WindowHandle = void *;
+
+    struct CreationParameters {
+        WindowHandle window = 0; // set to 0 to create pbuffer context
+        uint32_t pbufferW = 1, pbufferH = 1; // ignored when creating window render context.
+        bool shared = true;
+        bool debug = RG_BUILD_DEBUG;
+    };
+
+    RenderContext(const CreationParameters &);
+
+    ~RenderContext();
+
+    RG_NO_COPY(RenderContext);
+
+    // can move
+    RenderContext(RenderContext && that) : _impl(that._impl) { that._impl = nullptr; }
+    RenderContext & operator=(RenderContext && that);
+
+    void makeCurrent();
+    void swapBuffers();
+};
+
+// Store and restore OpenGL context
+class RenderContextStack {
+    class Impl;
+    Impl * _impl;
+public:
+
+    RG_NO_COPY(RenderContextStack);
+    RG_NO_MOVE(RenderContextStack);
+
+    RenderContextStack();
+
+    // the destructor will automatically pop out any previously pushed context.
+    ~RenderContextStack();
+
+    // push current context to the top of the stack
+    void push();
+
+    // make the top context current, but not popping it out of the stack.
+    void apply();
+
+    // apply then the top context current, then pop it out of the stack.
+    void pop();
 };
 
 } // namespace gl
