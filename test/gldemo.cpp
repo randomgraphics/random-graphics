@@ -8,6 +8,7 @@ using namespace rg::gl;
 #endif
 #include <QtWidgets/QtWidgets>
 #include <QtWidgets/QApplication>
+#include <QTimer>
 
 void render(RenderContext & rc) {
     clearScreen();
@@ -20,20 +21,19 @@ int main(int argc, char ** argv) {
     QWindow win;
     win.resize(1280, 720);
 
-    // Initialize OpenGL
-    if (gladLoadGL()) return -1;
-#if RG_MSWIN
-    if (!gladLoadWGL(::GetDC((HWND)win.winId()))) return -1;
-#endif
-
+    // create context
     RenderContext::CreationParameters cp;
     cp.window = (RenderContext::WindowHandle)win.winId();
     RenderContext rc(cp);
+    if (!rc.good()) return -1;
+    rc.makeCurrent();
 
-    bool running = true;
+    // setup idle timer
+    QTimer idleTimer;
+    QObject::connect(&idleTimer, &QTimer::timeout, [&]{ render(rc); });
+    idleTimer.start(0);
+
+    // start the main event loop
     win.show();
-    while(running) {
-        app.processEvents();
-        render(rc);
-    }
+    return app.exec();
 }

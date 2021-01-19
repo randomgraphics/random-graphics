@@ -947,9 +947,13 @@ public:
         destroy();
     }
 
+    bool good() const {
+        return _effectiveDC && _rc;
+    }
+
     void makeCurrent() {
-        if (!_rc) {
-            RG_LOGE("shared GL context is not properly initialized.");
+        if (!good()) {
+            RG_LOGE("GL context is not properly initialized.");
             return;
         }
 
@@ -1104,18 +1108,20 @@ private:
         if (!tc.init(_windowDC)) return 0;
 
         // TODO: only do it once.
-        if (!gladLoadWGL(_windowDC)) {
-            RG_LOGE("fail to load WGL extensions.");
+        if (!gladLoadGL() || !gladLoadWGL(_windowDC)) {
+            RG_LOGE("fail to load GL/WGL extensions.");
             return 0;
         }
 
         // create attribute list
         std::map<GLint, GLint> attribs = {
-            { WGL_SUPPORT_OPENGL_ARB, GL_TRUE },
-            { WGL_ACCELERATION_ARB, WGL_GENERIC_ACCELERATION_ARB },
-            { WGL_COLOR_BITS_ARB, 32 },
-            { WGL_DEPTH_BITS_ARB, 24 },
-            { WGL_STENCIL_BITS_ARB, 8 },
+            { WGL_SUPPORT_OPENGL_ARB,   GL_TRUE },
+            { WGL_ACCELERATION_ARB,     WGL_FULL_ACCELERATION_ARB },
+            { WGL_PIXEL_TYPE_ARB,       WGL_TYPE_RGBA_ARB },
+            { WGL_DOUBLE_BUFFER_ARB,    GL_TRUE },
+            { WGL_COLOR_BITS_ARB,       32 },
+            { WGL_DEPTH_BITS_ARB,       24 },
+            { WGL_STENCIL_BITS_ARB,     8 },
         };
         if (_cp.window) {
             attribs[WGL_DRAW_TO_WINDOW_ARB] = GL_TRUE;
@@ -1134,6 +1140,10 @@ private:
         int pf = 0;
         uint32_t count = 0;
         CHK_MSW(wglChoosePixelFormatARB(_windowDC, attribList.data(), nullptr, 1, &pf, &count), return false);
+        if (0 == count || 0 == pf) {
+            RG_LOGE("can't find appropriate pixel format.");
+            return 0;
+        }
 
         // done
         return pf;
@@ -1174,6 +1184,7 @@ gl::RenderContext & gl::RenderContext::operator=(RenderContext && that) {
     }
     return *this;
 }
+bool gl::RenderContext::good() const { return _impl ? _impl->good() : false; }
 void gl::RenderContext::makeCurrent() { if(_impl) _impl->makeCurrent(); }
 void gl::RenderContext::swapBuffers() { if(_impl) _impl->swapBuffers(); }
 

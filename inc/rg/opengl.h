@@ -1066,6 +1066,7 @@ public:
     RenderContext(RenderContext && that) : _impl(that._impl) { that._impl = nullptr; }
     RenderContext & operator=(RenderContext && that);
 
+    bool good() const; // check if the context is in good/working condition.
     void makeCurrent();
     void swapBuffers();
 };

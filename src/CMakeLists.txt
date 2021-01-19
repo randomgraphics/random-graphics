@@ -23,6 +23,7 @@ if (OPENGL_FOUND)
         list(APPEND sources 02-opengl/glad/glad_egl.c)
         list(APPEND sources 02-opengl/glad/glad_glx.c)
     endif()
+    list(APPEND libs OpenGL::GL)
 endif()
 
 find_package(Vulkan)
@@ -37,6 +38,7 @@ target_compile_definitions(random-graphics
         RG_INTERNAL=1
 )
 target_include_directories(random-graphics PUBLIC ../inc)
+target_link_libraries(random-graphics ${viz} ${libs})
 if (UNIX)
     target_link_libraries(random-graphics ${viz} atomic)
 endif()
