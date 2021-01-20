@@ -1,25 +1,11 @@
 #include "pch.h"
+#include "internal-helpers.h"
 #include <stdarg.h>
 #include <atomic>
 
 using namespace rg;
 using namespace rg::log;
 using namespace std::string_literals;
-
-// -----------------------------------------------------------------------------
-//
-template<class PRINTF>
-static void printToVector(PRINTF p, std::vector<char> & buffer) {
-    if (buffer.empty()) buffer.resize(1);
-    int n = p();
-    if (n < 0) return; // printf error
-    if ((size_t)(n + 1) > buffer.size()) {
-        buffer.resize((size_t)n + 1);
-    }
-    n = p();
-    RG_ASSERT((size_t)n < buffer.size());
-    buffer[n] = 0;
-}
 
 // -----------------------------------------------------------------------------
 //
@@ -81,13 +67,10 @@ Controller * rg::log::Controller::getInstance(const char * tag) {
 
 // ---------------------------------------------------------------------------------------------------------------------
 //
-const char * rg::log::Helper::formatlog(const char * format, ...) {
-    va_list args;
-    va_start(args, format);
-    thread_local static std::vector<char> buf1;
-    printToVector([&]{ return vsnprintf(buf1.data(), std::size(buf1), format, args); }, buf1);
-    va_end(args);
-    return buf1.data();
+const char * rg::log::Helper::formatlog(const char * format_, ...) {
+    thread_local static std::vector<char> buf1_;
+    RG_PRINT_TO_VECTOR(buf1_, format_);
+    return buf1_.data();
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

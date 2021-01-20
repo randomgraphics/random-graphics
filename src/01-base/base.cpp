@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "internal-helpers.h"
 #include <iomanip>
 #include <stdarg.h>
 #include <signal.h>
@@ -39,27 +40,9 @@ void rg::afree(void * p) {
 
 // -----------------------------------------------------------------------------
 //
-template<class PRINTF>
-static void printToVector(PRINTF p, std::vector<char> & buffer) {
-    if (buffer.empty()) buffer.resize(1);
-    int n = p();
-    if (n < 0) return; // printf error
-    if ((size_t)(n + 1) > buffer.size()) {
-        buffer.resize((size_t)n + 1);
-    }
-    n = p();
-    RG_ASSERT((size_t)n < buffer.size());
-    buffer[n] = 0;
-}
-
-// -----------------------------------------------------------------------------
-//
 const char * rg::formatstr(const char * format, ...) {
-    va_list args;
-    va_start(args, format);
     thread_local static std::vector<char> buf1;
-    printToVector([&]{ return vsnprintf(buf1.data(), std::size(buf1), format, args); }, buf1);
-    va_end(args);
+    RG_PRINT_TO_VECTOR(buf1, format);
     return buf1.data();
 }
 
