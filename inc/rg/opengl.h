@@ -19,20 +19,20 @@
 #elif RG_UNIX_LIKE
 #define RG_HAS_EGL 1
 #include <glad/glad.h>
-#include <glad/glad_egl.h>
-#include <glad/glad_glx.h>
 #endif
 
 // Check OpenGL error. This check is enabled in both debug and release build.
-#define RG_GLCHK(func)                                                      \
+#define RG_GLCHK(func, ...)                                                 \
     if( true ) {                                                            \
         func;                                                               \
         if (!glGetError) {                                                  \
             RG_LOGE("gl not initialized properly...");                      \
+            __VA_ARGS__;                                                    \
         } else {                                                            \
             auto err = glGetError();                                        \
             if (GL_NO_ERROR != err) {                                       \
                 RG_LOGE("function %s failed. (error=0x%x)", #func, err );   \
+                __VA_ARGS__;                                                \
             }                                                               \
         }                                                                   \
     } else void(0)
@@ -40,7 +40,7 @@
 /// Use RG_GLCHKDBG() at where that you want to have some sanity check in debug build,
 /// but don't want to pay the overhead in release build.
 #if RG_BUILD_DEBUG
-#define RG_GLCHKDBG(x) RG_GLCHK(x)
+#define RG_GLCHKDBG RG_GLCHK
 #else
 #define RG_GLCHKDBG(x) x
 #endif
@@ -98,7 +98,7 @@ inline GLint getInt(GLenum name, GLint i)
 // -----------------------------------------------------------------------------
 //
 #if RG_HAS_EGL
-const char * eglError2String(EGLint err);
+const char * eglError2String(khronos_int32_t err);
 #endif
 
 // -----------------------------------------------------------------------------
@@ -1050,9 +1050,16 @@ public:
     using WindowHandle = void *;
 
     struct CreationParameters {
-        WindowHandle window = 0; // set to 0 to create pbuffer context
-        uint32_t pbufferW = 1, pbufferH = 1; // ignored when creating window render context.
+        /// Window handle. Must be EGLNativeWindowType on platform with EGL support. Or HWND on Windows.
+        /// set to 0 to create offscreen pbuffer context
+        WindowHandle window = 0;
+
+        uint32_t pbufferW = 1, pbufferH = 1; // size of the pbuffer. Ignored when creating window render context.
+        
+        // create new contex that share resouce with current context on the calling thread, if any.
         bool shared = true;
+
+        // set to true to create a debug runtime.
         bool debug = RG_BUILD_DEBUG;
     };
 

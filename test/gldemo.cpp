@@ -1,14 +1,14 @@
-#include "rg/opengl.h"
-
-using namespace rg;
-using namespace rg::gl;
-
 #ifdef _MSC_VER
 #pragma warning(disable: 4127) // QT headers didn't use "if contexpr" when it should.
 #endif
+#include <QtCore/QtCore>
+#include <rg/opengl.h>
 #include <QtWidgets/QtWidgets>
 #include <QtWidgets/QApplication>
 #include <QTimer>
+
+using namespace rg;
+using namespace rg::gl;
 
 void render(RenderContext & rc) {
     clearScreen();

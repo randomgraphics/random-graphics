@@ -10,6 +10,11 @@
 #include <iomanip>
 #include <cmath>
 
+#if RG_HAS_EGL
+#include <glad/glad_egl.h>
+#include <glad/glad_glx.h>
+#endif
+
 using namespace rg;
 using namespace rg::gl;
 
@@ -751,20 +756,20 @@ std::string rg::gl::GpuTimestamps::print(const char * ident) const {
 }
 
 #if RG_HAS_EGL
-#define EGLCHK_R(x, returnValueWhenFailed) if (!(x)) { \
-    RG_LOGE(#x " failed: %s", gl::eglError2String(eglGetError())); \
-    return (returnValueWhenFailed); \
-} else void(0)
-#define EGLCHK(x) if (!(x)) { RG_RIP(#x " failed: %s", gl::eglError2String(eglGetError())); } else void(0)
-class gl::RenderContext::Impl
+
+#define RG_EGLCHK(x, failed_action) if (!(x)) { RG_LOGE(#x " failed: %s", gl::eglError2String(eglGetError())); failed_action; } else void(0)
+
+class rg::gl::RenderContext::Impl
 {
 public:
-    Impl(gl::RenderContext::WindowHandle window, bool shared) : _window(NativeWindowType(window)) {
-        if (shared) initSharedContext();
-        else initStandaloneContext();
+    
+    Impl(const CreationParameters & cp) : _cp(cp) {
+        if (!init()) destroy();
     }
 
     ~Impl() { destroy(); }
+
+    bool good() const { return !!_rc; }
 
     void makeCurrent() {
         if (!eglMakeCurrent(_disp, _surf, _surf, _rc)) {
@@ -782,81 +787,13 @@ public:
 private:
 
     //The context represented by this object.
+    const CreationParameters _cp;
     bool _new_disp = false;
     EGLDisplay _disp = 0;
     EGLContext _rc = 0;
     EGLSurface _surf = 0;
-    NativeWindowType _window = (NativeWindowType)nullptr;
 
-    void initSharedContext() {
-        _disp = eglGetCurrentDisplay();
-        auto currentRC = eglGetCurrentContext();
-        if (!_disp || !currentRC) RG_RIP("no current display and/or EGL context found.");
-
-        auto currentConfig = getCurrentConfig(_disp, currentRC);
-        if (!currentConfig) RG_RIP("failed to get EGL config.");
-
-        if (_window) {
-            RG_CHK(_surf = eglCreateWindowSurface(_disp, getCurrentConfig(_disp, currentRC), _window, nullptr));
-        } else {
-            EGLint pbufferAttribs[] = {
-                    EGL_WIDTH, 1,
-                    EGL_HEIGHT, 1,
-                    EGL_NONE,
-            };
-            RG_CHK(_surf = eglCreatePbufferSurface(_disp, currentConfig, pbufferAttribs));
-        }
-
-        // create context
-        EGLint contextAttribs[] = {
-                EGL_CONTEXT_CLIENT_VERSION, 3,
-#ifdef _DEBUG
-                EGL_CONTEXT_FLAGS_KHR, EGL_CONTEXT_OPENGL_DEBUG_BIT_KHR,
-#endif
-                EGL_NONE,
-        };
-        RG_CHK(_rc = eglCreateContext(_disp, currentConfig, currentRC,  contextAttribs));
-    }
-
-    void initStandaloneContext() {
-        _new_disp = true;
-        _disp = findBestHardwareDisplay();
-        if (0 == _disp) { EGLCHK(_disp = eglGetDisplay(EGL_DEFAULT_DISPLAY)); }
-        EGLCHK(eglInitialize(_disp, nullptr, nullptr));
-        const EGLint configAttribs[] = {
-                EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
-                EGL_BLUE_SIZE, 8,
-                EGL_GREEN_SIZE, 8,
-                EGL_RED_SIZE, 8,
-                EGL_DEPTH_SIZE, 8,
-                EGL_NONE
-        };
-        EGLint numConfigs;
-        EGLConfig config;
-        EGLCHK(eglChooseConfig(_disp, configAttribs, &config, 1, &numConfigs));
-        RG_CHK(numConfigs > 0);
-        EGLint pbufferAttribs[] = {
-                EGL_WIDTH, 1,
-                EGL_HEIGHT, 1,
-                EGL_NONE,
-        };
-        EGLCHK(_surf = eglCreatePbufferSurface(_disp, config, pbufferAttribs));
-        RG_CHK(_surf);
-#ifdef __ANDROID__
-        EGLCHK(eglBindAPI(EGL_OPENGL_ES_API));
-#else
-        EGLCHK(eglBindAPI(EGL_OPENGL_API));
-#endif
-        EGLint contextAttribs[] = {
-                EGL_CONTEXT_CLIENT_VERSION, 3,
-#ifdef _DEBUG
-                EGL_CONTEXT_FLAGS_KHR, EGL_CONTEXT_OPENGL_DEBUG_BIT_KHR,
-#endif
-                EGL_NONE,
-        };
-        RG_CHK(_rc = eglCreateContext(_disp, config, 0, contextAttribs));
-    }
-
+    /// cleanup everything
     void destroy() {
         if (_surf) eglDestroySurface(_disp, _surf), _surf = 0;
         if (_rc) eglDestroyContext(_disp, _rc), _rc = 0;
@@ -864,13 +801,83 @@ private:
         _disp = 0;
     }
 
+    template <class... Args>
+    static bool failed(Args&&... args) { RG_LOGE(args...); return false; }
+
+    bool init() {
+
+        // search for shared display and config first
+        EGLContext currentRC = 0;
+        EGLConfig config = 0;
+        if (_cp.shared) {
+            _disp = eglGetCurrentDisplay();
+            if (_disp) {
+                currentRC = eglGetCurrentContext();
+                if (currentRC) {
+                    config = getCurrentConfig(_disp, currentRC);
+                }
+            }
+        }
+
+        // _cp.shared flag is just a hint. so it is possible that there's nothing on current thread to share with. In that case,
+        // we'll just create a standalone context.
+        if (!_disp) {
+            _disp = findBestHardwareDisplay();
+            if (!_disp) {
+                // no hardware diplay found. use the default one instead.
+                RG_EGLCHK(_disp = eglGetDisplay(EGL_DEFAULT_DISPLAY), return false);
+            }
+            if (!_disp) return failed("no display found.");
+            RG_EGLCHK(eglInitialize(_disp, nullptr, nullptr), return false);
+        }
+        if (!config) {
+            const EGLint configAttribs[] = {
+                    EGL_SURFACE_TYPE, _cp.window ? EGL_WINDOW_BIT : EGL_PBUFFER_BIT,
+                    EGL_BLUE_SIZE, 8,
+                    EGL_GREEN_SIZE, 8,
+                    EGL_RED_SIZE, 8,
+                    EGL_ALPHA_SIZE, 8,
+                    EGL_DEPTH_SIZE, 24,
+                    EGL_STENCIL_SIZE, 8,
+                    EGL_NONE
+            };
+            EGLint numConfigs;
+            EGLConfig config;
+            RG_EGLCHK(eglChooseConfig(_disp, configAttribs, &config, 1, &numConfigs), return false);
+            RG_CHK(numConfigs > 0, return false);
+        }
+
+        // create surface
+        if (_cp.window) {
+            RG_EGLCHK(_surf = eglCreateWindowSurface(_disp, config, (EGLNativeWindowType)_cp.window, nullptr), return false);
+        } else {
+            EGLint surfAttribs[] = {
+                    EGL_WIDTH,  (EGLint)_cp.pbufferW,
+                    EGL_HEIGHT, (EGLint)_cp.pbufferH,
+                    EGL_NONE,
+            };
+            RG_EGLCHK(_surf = eglCreatePbufferSurface(_disp, config, surfAttribs), return false);
+        }
+
+        // create context
+        EGLint contextAttribs[] = {
+                EGL_CONTEXT_CLIENT_VERSION, 3,
+                EGL_CONTEXT_FLAGS_KHR, _cp.debug ? EGL_CONTEXT_OPENGL_DEBUG_BIT_KHR : 0,
+                EGL_NONE,
+        };
+        RG_EGLCHK(_rc = eglCreateContext(_disp, config, currentRC,  contextAttribs), return false);
+
+        // done
+        return true;
+    }
+
     static EGLConfig getCurrentConfig(EGLDisplay d, EGLContext c) {
         EGLint currentConfigID = 0;
-        EGLCHK_R(eglQueryContext(d, c, EGL_CONFIG_ID, &currentConfigID), 0);
+        RG_EGLCHK(eglQueryContext(d, c, EGL_CONFIG_ID, &currentConfigID), return 0);
         EGLint numConfigs;
-        EGLCHK_R(eglGetConfigs(d, nullptr, 0, &numConfigs), 0);
+        RG_EGLCHK(eglGetConfigs(d, nullptr, 0, &numConfigs), return 0);
         std::vector<EGLConfig> configs(numConfigs);
-        EGLCHK_R(eglGetConfigs(d, configs.data(), numConfigs, &numConfigs), 0);
+        RG_EGLCHK(eglGetConfigs(d, configs.data(), numConfigs, &numConfigs), return 0);
         for(auto config : configs) {
             EGLint id;
             eglGetConfigAttrib(d, config, EGL_CONFIG_ID, &id);
@@ -895,7 +902,7 @@ private:
 
         EGLDeviceEXT devices[32];
         EGLint num_devices;
-        EGLCHK_R(eglQueryDevicesEXT(32, devices, &num_devices), 0);
+        RG_EGLCHK(eglQueryDevicesEXT(32, devices, &num_devices), return 0);
         if (num_devices == 0) {
             RG_LOGE("No EGL devices found.");
             return 0;

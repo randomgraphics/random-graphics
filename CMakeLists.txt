@@ -13,6 +13,12 @@ elseif (GCC)
     add_compile_options(-Wall -Wextra -Werror)
 endif()
 
+# search for dependencies
+find_package(OpenGL)
+find_package(Vulkan)
+find_package(Qt5 COMPONENTS Widgets)
+find_package(Qt6 COMPONENTS Widgets)
+
 add_subdirectory(src)
 
 if (RG_BUILD_TEST)

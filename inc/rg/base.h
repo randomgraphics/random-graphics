@@ -80,12 +80,16 @@
         rg::rip();                          \
     } while (0)
 
-/// Check for required conditions. call RIP when the condition is not met.
-#define RG_CHK(x)                           \
-    if (!(x)) {                             \
-        RG_RIP("condition #x didn't met");  \
-    } else                                  \
+/// Check for required condition, call the failure clause if the condition is not met.
+#define RG_CHK(x, action_on_false)                      \
+    if (!(x)) {                                         \
+        RG_LOG(, F, "[CHK] condition #x didn't met");   \
+        action_on_false;                                \
+    } else                                              \
         void(0)
+
+/// Check for required conditions. call RIP when the condition is not met.
+#define RG_RIP_IF_NOT(x)  RG_CHK(x, rg::rip())
 
 /// Runtime assertion
 //@{
