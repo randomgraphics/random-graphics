@@ -832,7 +832,7 @@ private:
         }
         if (!config) {
             const EGLint configAttribs[] = {
-                    EGL_SURFACE_TYPE, _cp.window ? EGL_WINDOW_BIT : EGL_PBUFFER_BIT,
+                    //EGL_SURFACE_TYPE, _cp.window ? EGL_WINDOW_BIT : EGL_PBUFFER_BIT,
                     EGL_BLUE_SIZE, 8,
                     EGL_GREEN_SIZE, 8,
                     EGL_RED_SIZE, 8,
@@ -907,18 +907,28 @@ private:
             RG_LOGE("No EGL devices found.");
             return 0;
         }
-        RG_LOGI("Total %d EGL devices found.", num_devices);
 
         // try find the NVIDIA device
         EGLDisplay nvidia = 0;
+        std::stringstream ss;
+        ss << "Total " << num_devices <<" EGL devices found.\n";
         for (int i = 0; i < num_devices; ++i) {
             auto display = eglGetPlatformDisplayExt(EGL_PLATFORM_DEVICE_EXT, devices[i], nullptr);
             EGLint major, minor;
             eglInitialize(display, &major, &minor);
-            auto vendor = eglQueryString(display, EGL_VENDOR);
-            if (vendor && 0 == strcmp(vendor, "Qualcomm")) nvidia = display;
+            const char * s = eglQueryString(display, EGL_VENDOR);
+            std::string vendor = s ? s : "<unknown vendor>";
+            ss << "   ";
+            if (vendor == "NVIDIA") {
+                ss << "*";
+                nvidia = display;
+            } else {
+                ss << " ";
+            }
+            ss << vendor << "\n";
             eglTerminate(display);
         }
+        RG_LOGI(ss);
 
         return nvidia;
     }

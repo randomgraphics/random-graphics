@@ -83,7 +83,7 @@
 /// Check for required condition, call the failure clause if the condition is not met.
 #define RG_CHK(x, action_on_false)                      \
     if (!(x)) {                                         \
-        RG_LOG(, F, "[CHK] condition #x didn't met");   \
+        RG_LOG(, F, "Condition ("#x") didn't met.");    \
         action_on_false;                                \
     } else                                              \
         void(0)
@@ -96,7 +96,7 @@
 #if RG_BUILD_DEBUG
 #define RG_ASSERT(x, ...)              \
     if (!(x)) {                        \
-        RG_RIP("ASSERT failure: #x");  \
+        RG_RIP("ASSERT failure: "#x);  \
     } else                             \
         void(0)
 #else
@@ -262,6 +262,16 @@ public:
         post(formatlog(format, std::forward<Args>(args)...));
     }
 
+    template<class... Args>
+    void operator()(const std::string & format, Args&&... args) {
+        post(formatlog(format.c_str(), std::forward<Args>(args)...));
+    }
+
+    template<class... Args>
+    void operator()(const std::stringstream & format, Args&&... args) {
+        post(formatlog(format.str().c_str(), std::forward<Args>(args)...));
+    }
+
     void operator()(const macros::LogStream & s) {
         post(formatlog(s.ss.str().c_str()));
     }
@@ -272,6 +282,16 @@ public:
             _desc.tag = c->tag().c_str();
             operator()(format, std::forward<Args>(args)...);
         }
+    }
+
+    template<class... Args>
+    void operator()(Controller * c, const std::string & format, Args&&... args) {
+        operator()(c, format.c_str(), std::forward<Args>(args)...);
+    }
+
+    template<class... Args>
+    void operator()(Controller * c, const std::stringstream & format, Args&&... args) {
+        operator()(c, format.str().c_str(), std::forward<Args>(args)...);
     }
 
     void operator()(Controller * c, const macros::LogStream & s) {
