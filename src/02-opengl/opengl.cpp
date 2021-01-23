@@ -20,7 +20,7 @@ using namespace rg::gl;
 
 // -----------------------------------------------------------------------------
 //
-bool rg::gl::initOpenGLExtensions() {
+bool rg::gl::initExtensions() {
     if (!gladLoadGL()) {
         RG_LOGE("fail to load GL extensions.");
         return 0;
@@ -900,6 +900,15 @@ private:
         };
         RG_EGLCHK(_rc = eglCreateContext(_disp, config, currentRC,  contextAttribs), return false);
 
+        // initialize extentions
+        if (!gladLoadGL() || !gladLoadEGL()) {
+            return false;
+        }
+
+        if (_cp.debug) {
+            enableDebugRuntime();
+        }
+
         // done
         return true;
     }
@@ -1056,6 +1065,15 @@ private:
         if (_cp.shared) {
             auto rc = wglGetCurrentContext();
             if (rc) CHK_MSW( wglShareLists(rc, _rc),  return false);
+        }
+
+        // initialize extentions using the formal context
+        if (!gladLoadGL() || !gladLoadWGL(_effectiveDC)) {
+            return false;
+        }
+
+        if (_cp.debug) {
+            enableDebugRuntime();
         }
 
         // done

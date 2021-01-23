@@ -50,7 +50,7 @@ namespace gl {
 
 // -----------------------------------------------------------------------------
 /// initialize all GL/EGL extentions for utlities in header.
-bool initOpenGLExtensions();
+bool initExtensions();
 
 // -----------------------------------------------------------------------------
 /// enable OpenGL debug runtime

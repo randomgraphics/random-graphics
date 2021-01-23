@@ -1,5 +1,6 @@
 #include <rg/opengl.h>
 
+// TODO: QWindow with GLX window
 #ifdef _MSC_VER
 #pragma warning(disable: 4127) // QT headers didn't use "if contexpr" when it should.
 #endif
@@ -23,16 +24,12 @@ int main(int argc, char ** argv) {
     win.resize(1280, 720);
 
     // create QT opengl context
-    RenderContext rc({
-        .window = (RenderContext::WindowHandle)win.winId(),
-    });
+    RenderContext rc({(RenderContext::WindowHandle)win.winId()});
     if (!rc.good()) {
         RG_LOGE("Failed to create GL context.");
         return -1;
     }
     rc.makeCurrent();
-
-    if (!initOpenGLExtensions()) return -1;
 
     // setup idle timer
     QTimer idleTimer;

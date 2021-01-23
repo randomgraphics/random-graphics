@@ -35,7 +35,7 @@ int main(int argc, char ** argv) {
     }
     RG_ASSERT(rc.IsValid());
 
-    if (!initOpenGLExtensions()) return -1;
+    if (!initExtensions()) return -1;
 
     // setup idle timer
     QTimer idleTimer;
