@@ -1068,6 +1068,7 @@ private:
         }
 
         // initialize extentions using the formal context
+        makeCurrent();
         if (!gladLoadGL() || !gladLoadWGL(_effectiveDC)) {
             return false;
         }

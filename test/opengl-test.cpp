@@ -19,8 +19,8 @@ int main(int argc, char ** argv) {
     // initialize Qt window
     QGuiApplication app(argc, argv);
     QWindow win;
-    win.setSurfaceType(QSurface::OpenGLSurface);
-    win.create();
+    //win.setSurfaceType(QSurface::OpenGLSurface);
+    //win.create();
     win.resize(1280, 720);
 
     // create QT opengl context
