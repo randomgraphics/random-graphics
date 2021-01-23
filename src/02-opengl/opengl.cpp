@@ -20,6 +20,40 @@ using namespace rg::gl;
 
 // -----------------------------------------------------------------------------
 //
+bool rg::gl::initOpenGLExtensions() {
+    if (!gladLoadGL()) {
+        RG_LOGE("fail to load GL extensions.");
+        return 0;
+    }
+
+#if RG_MSWIN
+    // TODO: acquire an windows DC and initialize all WGL functions.
+    // HDC dc = ::GetDC(0);
+    // if (gladLoadWGL(dc)) {
+    //     ::ReleaseDC(dc);
+    //     RG_LOGE("fail to load GL extensions.");
+    //     return 0;
+    // }
+    // ::ReleaseDC(dc);
+#endif
+
+#if RG_HAS_EGL
+    if (!gladLoadEGL()) {
+        RG_LOGE("fail to load GL extensions.");
+        return 0;
+    }
+#endif
+
+#if RG_BUILD_DEBUG
+    enableDebugRuntime();
+#endif
+
+    // done
+    return true;
+}
+
+// -----------------------------------------------------------------------------
+//
 void rg::gl::enableDebugRuntime()
 {
     struct OGLDebugOutput
@@ -832,11 +866,10 @@ private:
         }
         if (!config) {
             const EGLint configAttribs[] = {
-                    //EGL_SURFACE_TYPE, _cp.window ? EGL_WINDOW_BIT : EGL_PBUFFER_BIT,
+                    EGL_SURFACE_TYPE, _cp.window ? EGL_WINDOW_BIT : EGL_PBUFFER_BIT,
                     EGL_BLUE_SIZE, 8,
                     EGL_GREEN_SIZE, 8,
                     EGL_RED_SIZE, 8,
-                    EGL_ALPHA_SIZE, 8,
                     EGL_DEPTH_SIZE, 24,
                     EGL_STENCIL_SIZE, 8,
                     EGL_NONE

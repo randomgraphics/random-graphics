@@ -12,13 +12,13 @@
 #include <cstring>
 
 #if !RG_BUILD_STATIC
-#define GLAD_GLAPI_EXPORT
+# define GLAD_GLAPI_EXPORT
 #endif
 #if RG_MSWIN
-#include <glad/glad_wgl.h>
+# include <glad/glad_wgl.h>
 #elif RG_UNIX_LIKE
-#define RG_HAS_EGL 1
-#include <glad/glad.h>
+# define RG_HAS_EGL 1
+# include <glad/glad.h>
 #endif
 
 // Check OpenGL error. This check is enabled in both debug and release build.
@@ -47,6 +47,10 @@
 
 namespace rg {
 namespace gl {
+
+// -----------------------------------------------------------------------------
+/// initialize all GL/EGL extentions for utlities in header.
+bool initOpenGLExtensions();
 
 // -----------------------------------------------------------------------------
 /// enable OpenGL debug runtime
