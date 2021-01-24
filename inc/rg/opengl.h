@@ -1051,8 +1051,6 @@ class PBufferRenderContext {
     class Impl;
     Impl * _impl;
 public:
-    using WindowHandle = void *;
-
     struct CreationParameters {
         uint32_t width = 1, height = 1;
         
