@@ -48,7 +48,7 @@ using namespace rg::gl;
 
 TEST_CASE("context", "[opengl]") {
 
-    SECTION("default creation parameter") {
+    SECTION("default pbuffer context") {
         PBufferRenderContext rc({});
         CHECK(rc.good());
     }

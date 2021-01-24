@@ -175,6 +175,21 @@ void rg::gl::enableDebugRuntime()
 }
 
 // -----------------------------------------------------------------------------
+/// Split a string into token list
+static void
+getTokens(std::vector<std::string> & tokens, const char* str) {
+    if (!str || !*str) return;
+    const char* p1 = str;
+    const char* p2 = p1;
+    while (*p1) {
+        while (*p2 && *p2 != ' ') ++p2;
+        tokens.push_back({ p1, p2 });
+        while (*p2 && *p2 == ' ') ++p2;
+        p1 = p2;
+    }
+}
+
+// -----------------------------------------------------------------------------
 //
 std::string rg::gl::printGLInfo(bool printExtensionList)
 {
@@ -217,16 +232,23 @@ std::string rg::gl::printGLInfo(bool printExtensionList)
         ;
 
     if (printExtensionList) {
-        info << "---------------------------------------------------\n";
+        // get GL extensions
         std::vector<std::string> extensions;
-        GLint n = 0;
-        glGetIntegerv(GL_NUM_EXTENSIONS, &n);
-        for (int i = 0; i < n; ++i) {
-            extensions.push_back((const char*)glGetStringi(GL_EXTENSIONS, i));
+        getTokens(extensions, (const char *)glGetString(GL_EXTENSIONS));
+
+#if RG_MSWIN
+        if (GLAD_WGL_EXT_extensions_string) {
+            getTokens(extensions, wglGetExtensionsStringEXT());
         }
+#endif
+
+        // TODO: get EGL/GLX extensions
+
         std::sort(extensions.begin(), extensions.end());
-        for (int i = 0; i < n; ++i) {
-            info << "    " << extensions[i] << "\n";
+
+        info << "---------------------------------------------------\n";
+        for(auto e : extensions) {
+            info << "    " << e << "\n";
         }
     }
 
@@ -1058,14 +1080,30 @@ private:
         if (!_dw.init()) return false;
         if (!_windowDC.init(_dw)) return false;
 
+        // create a temporary context
+        TempContext tc;
+        if (!tc.init(_windowDC)) return false;
+
+        // TODO: only do it once.
+        if (!gladLoadGL() || !gladLoadWGL(_windowDC)) {
+            RG_LOGE("fail to load GL/WGL extensions.");
+            return false;
+        }
+        if (!GLAD_WGL_ARB_pbuffer) {
+            RG_LOGE("WGL_ARB_pbuffer is reuqired to create pbuffer context.");
+            return false;
+        }
+
+        // RG_LOGI(printGLInfo(true));
+
         // determin pixel format
         auto pf = determinePixelFormat();
         if (0 == pf) return false;
 
         // determine effective DC
         // create pbuffer
-        CHK_MSW(_pbuffer = wglCreatePbufferEXT(_windowDC, pf, (int)_cp.width, (int)_cp.height, nullptr), return false);
-        CHK_MSW(_pbufferDC = wglGetPbufferDCEXT(_pbuffer), return false);
+        CHK_MSW(_pbuffer = wglCreatePbufferARB(_windowDC, pf, (int)_cp.width, (int)_cp.height, nullptr), return false);
+        CHK_MSW(_pbufferDC = wglGetPbufferDCARB(_pbuffer), return false);
         _effectiveDC = _pbufferDC;
 
         // Try creating a formal context using wglCreateContextAttribsARB
@@ -1082,11 +1120,9 @@ private:
             if (rc) CHK_MSW( wglShareLists(rc, _rc),  return false);
         }
 
-        // initialize extentions using the formal context
+        // switch to the formal context
+        tc.quit();
         makeCurrent();
-        if (!gladLoadGL() || !gladLoadWGL(_effectiveDC)) {
-            return false;
-        }
 
         if (_cp.debug) {
             enableDebugRuntime();
@@ -1106,6 +1142,7 @@ private:
                 return false;
             }
             CHK_MSW(_dc = ::GetDC(w), return false);
+            _w = w;
             return true;
         }
         void destroy() {
@@ -1187,31 +1224,21 @@ private:
     }
 
     int determinePixelFormat() {
-        // create a temporary context
-        TempContext tc;
-        if (!tc.init(_windowDC)) return 0;
-
-        // TODO: only do it once.
-        if (!gladLoadGL() || !gladLoadWGL(_windowDC)) {
-            RG_LOGE("fail to load GL/WGL extensions.");
-            return 0;
-        }
-
         // create attribute list
         std::map<GLint, GLint> attribs = {
             { WGL_SUPPORT_OPENGL_ARB,   GL_TRUE },
             { WGL_ACCELERATION_ARB,     WGL_FULL_ACCELERATION_ARB },
             { WGL_PIXEL_TYPE_ARB,       WGL_TYPE_RGBA_ARB },
-            { WGL_DOUBLE_BUFFER_ARB,    GL_TRUE },
             { WGL_COLOR_BITS_ARB,       32 },
             { WGL_DEPTH_BITS_ARB,       24 },
             { WGL_STENCIL_BITS_ARB,     8 },
         };
-        if (_cp.window) {
-            attribs[WGL_DRAW_TO_WINDOW_ARB] = GL_TRUE;
-        } else {
+        // if (_cp.window) {
+        //     attribs[WGL_DRAW_TO_WINDOW_ARB] = GL_TRUE;
+        //     attribs[WGL_DOUBLE_BUFFER_ARB] = GL_TRUE;
+        // } else {
             attribs[WGL_DRAW_TO_PBUFFER_ARB] = GL_TRUE;
-        }
+        // }
 
         // choose the pixel format
         std::vector<GLint> attribList;
@@ -1236,8 +1263,8 @@ private:
     void destroy()
     {
         if (_rc) wglDeleteContext(_rc), _rc = 0;
-        if (_pbufferDC) wglReleasePbufferDCEXT(_pbuffer, _pbufferDC), _pbufferDC = 0;
-        if (_pbuffer) wglDestroyPbufferEXT(_pbuffer), _pbuffer = 0;
+        if (_pbufferDC) wglReleasePbufferDCARB(_pbuffer, _pbufferDC), _pbufferDC = 0;
+        if (_pbuffer) wglDestroyPbufferARB(_pbuffer), _pbuffer = 0;
         _windowDC.destroy();
         _dw.destroy();
     }
@@ -1246,7 +1273,7 @@ private:
     const CreationParameters _cp;
     DummyWindow _dw;
     AutoDC      _windowDC;
-    HPBUFFEREXT _pbuffer = 0;
+    HPBUFFERARB _pbuffer = 0;
     HDC         _pbufferDC = 0;
     HDC         _effectiveDC = 0;
     HGLRC       _rc = 0;
