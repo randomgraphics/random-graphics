@@ -33,7 +33,6 @@ int main(int argc, char ** argv) {
         RG_LOGE("Failed to make GL context current.");
         return -1;
     }
-    RG_ASSERT(rc.IsValid());
 
     if (!initExtensions()) return -1;
 
