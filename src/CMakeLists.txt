@@ -39,5 +39,5 @@ target_compile_definitions(random-graphics
 target_include_directories(random-graphics PUBLIC ../inc)
 target_link_libraries(random-graphics ${viz} ${libs})
 if (UNIX)
-    target_link_libraries(random-graphics ${viz} atomic)
+    target_link_libraries(random-graphics ${viz} atomic dl)
 endif()

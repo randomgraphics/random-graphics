@@ -1046,19 +1046,15 @@ private:
 };
 
 // -----------------------------------------------------------------------------
-/// Helper class to initialize OpenGL render context
-class RenderContext {
+/// Helper class to initialize OpenGL offscreen pbuffer render context
+class PBufferRenderContext {
     class Impl;
     Impl * _impl;
 public:
     using WindowHandle = void *;
 
     struct CreationParameters {
-        /// Window handle. Must be EGLNativeWindowType on platform with EGL support. Or HWND on Windows.
-        /// set to 0 to create offscreen pbuffer context
-        WindowHandle window = 0;
-
-        uint32_t pbufferW = 1, pbufferH = 1; // size of the pbuffer. Ignored when creating window render context.
+        uint32_t width = 1, height = 1;
         
         // create new contex that share resouce with current context on the calling thread, if any.
         bool shared = true;
@@ -1067,15 +1063,15 @@ public:
         bool debug = RG_BUILD_DEBUG;
     };
 
-    RenderContext(const CreationParameters &);
+    PBufferRenderContext(const CreationParameters &);
 
-    ~RenderContext();
+    ~PBufferRenderContext();
 
-    RG_NO_COPY(RenderContext);
+    RG_NO_COPY(PBufferRenderContext);
 
     // can move
-    RenderContext(RenderContext && that) : _impl(that._impl) { that._impl = nullptr; }
-    RenderContext & operator=(RenderContext && that);
+    PBufferRenderContext(PBufferRenderContext && that) : _impl(that._impl) { that._impl = nullptr; }
+    PBufferRenderContext & operator=(PBufferRenderContext && that);
 
     bool good() const; // check if the context is in good/working condition.
     void makeCurrent();

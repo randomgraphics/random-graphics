@@ -1,5 +1,8 @@
 add_executable(unit-test unit-test.cpp)
-target_link_libraries(unit-test random-graphics)
+if (OPENGL_FOUND)
+    target_compile_definitions(unit-test PRIVATE HAS_OPENGL=1)
+endif()
+target_link_libraries(unit-test PRIVATE random-graphics)
 
 function(add_gl_app target source)
     if (Qt6Widgets_FOUND)
@@ -9,13 +12,9 @@ function(add_gl_app target source)
         add_executable(${target} ${source})
         target_link_libraries(${target} random-graphics Qt5::Widgets)
     endif()
-    if (TARGET ${target} AND UNIX)
-        target_link_libraries(${target} dl)
-    endif()
 endfunction()
 
 if (OPENGL_FOUND)
     add_gl_app(qopengl-test qopengl-test.cpp)
-    add_gl_app(opengl-test opengl-test.cpp)
 endif()
 

@@ -793,7 +793,7 @@ std::string rg::gl::GpuTimestamps::print(const char * ident) const {
 
 #define RG_EGLCHK(x, failed_action) if (!(x)) { RG_LOGE(#x " failed: %s", gl::eglError2String(eglGetError())); failed_action; } else void(0)
 
-class rg::gl::RenderContext::Impl
+class rg::gl::PBufferRenderContext::Impl
 {
 public:
     
@@ -862,11 +862,39 @@ private:
                 RG_EGLCHK(_disp = eglGetDisplay(EGL_DEFAULT_DISPLAY), return false);
             }
             if (!_disp) return failed("no display found.");
-            RG_EGLCHK(eglInitialize(_disp, nullptr, nullptr), return false);
+            EGLint major, minor;
+            RG_EGLCHK(eglInitialize(_disp, &major, &minor), return false);
+            RG_LOGI("EGL version = %d.%d", major, minor);
         }
+        RG_EGLCHK(eglBindAPI(EGL_OPENGL_API), return false);
+
+        // {
+        //     // test code: iterate through all configs
+        //     EGLint numConfigs;
+        //     RG_EGLCHK(eglGetConfigs(_disp, nullptr, 0, &numConfigs), return false);
+        //     std::vector<EGLConfig> configs((size_t)numConfigs);
+        //     RG_EGLCHK(eglGetConfigs(_disp, configs.data(), numConfigs, &numConfigs), return false);
+
+        //     const EGLint attribs[] = {
+        //         EGL_RENDERABLE_TYPE,
+        //         EGL_SURFACE_TYPE,
+        //     };
+        //     std::stringstream ss;
+        //     for(auto c : configs) {
+        //         EGLint v;
+        //         ss << "config " << c << "\n";
+        //         for(auto a : attribs) {
+        //             RG_EGLCHK(eglGetConfigAttrib(_disp, c, a, &v), return false);
+        //             ss << formatstr("    attr 0x%X = 0x%X\n", a, v);
+        //         }
+        //     }
+        //     RG_LOGI(ss);
+        // }
+
         if (!config) {
             const EGLint configAttribs[] = {
-                    EGL_SURFACE_TYPE, _cp.window ? EGL_WINDOW_BIT : EGL_PBUFFER_BIT,
+                    EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
+                    EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
                     EGL_BLUE_SIZE, 8,
                     EGL_GREEN_SIZE, 8,
                     EGL_RED_SIZE, 8,
@@ -875,30 +903,28 @@ private:
                     EGL_NONE
             };
             EGLint numConfigs;
-            EGLConfig config;
-            RG_EGLCHK(eglChooseConfig(_disp, configAttribs, &config, 1, &numConfigs), return false);
+            EGLConfig configs[10];
+            RG_EGLCHK(eglChooseConfig(_disp, configAttribs, configs, std::size(configs), &numConfigs), return false);
             RG_CHK(numConfigs > 0, return false);
+            config = configs[0];
         }
 
         // create surface
-        if (_cp.window) {
-            RG_EGLCHK(_surf = eglCreateWindowSurface(_disp, config, (EGLNativeWindowType)_cp.window, nullptr), return false);
-        } else {
-            EGLint surfAttribs[] = {
-                    EGL_WIDTH,  (EGLint)_cp.pbufferW,
-                    EGL_HEIGHT, (EGLint)_cp.pbufferH,
-                    EGL_NONE,
-            };
-            RG_EGLCHK(_surf = eglCreatePbufferSurface(_disp, config, surfAttribs), return false);
-        }
+        EGLint surfAttribs[] = {
+                EGL_WIDTH,  (EGLint)_cp.width,
+                EGL_HEIGHT, (EGLint)_cp.height,
+                EGL_NONE,
+        };
+        RG_EGLCHK(_surf = eglCreatePbufferSurface(_disp, config, surfAttribs), return false);
 
         // create context
         EGLint contextAttribs[] = {
-                EGL_CONTEXT_CLIENT_VERSION, 3,
                 EGL_CONTEXT_FLAGS_KHR, _cp.debug ? EGL_CONTEXT_OPENGL_DEBUG_BIT_KHR : 0,
                 EGL_NONE,
         };
         RG_EGLCHK(_rc = eglCreateContext(_disp, config, currentRC,  contextAttribs), return false);
+
+        makeCurrent();
 
         // initialize extentions
         if (!gladLoadGL() || !gladLoadEGL()) {
@@ -994,7 +1020,7 @@ static inline const char * getLastErrorString() {
 #pragma warning(disable: 4706) // assignment within conditional expression
 #define CHK_MSW(x, y) if (!(x)) { RG_LOGE(#x " failed: %s", getLastErrorString()); y; } else void(0)
 
-class gl::RenderContext::Impl {
+class gl::PBufferRenderContext::Impl {
 public:
 
     Impl(const CreationParameters & cp) : _cp(cp) {
@@ -1029,29 +1055,18 @@ private:
 
     bool create() {
 
-        if (_cp.window) {
-            HWND w = (HWND)_cp.window;
-            if (!IsWindow(w)) return failed("not a valid window handle.");
-            if (!_windowDC.init(w)) return false;
-        } else {
-            if (!_dw.init()) return false;
-            if (!_windowDC.init(_dw)) return false;
-        }
+        if (!_dw.init()) return false;
+        if (!_windowDC.init(_dw)) return false;
 
         // determin pixel format
         auto pf = determinePixelFormat();
         if (0 == pf) return false;
 
         // determine effective DC
-        if (_cp.window) {
-            _effectiveDC = _windowDC;
-        }
-        else {
-            // create pbuffer
-            CHK_MSW(_pbuffer = wglCreatePbufferEXT(_windowDC, pf, (int)_cp.pbufferW, (int)_cp.pbufferH, nullptr), return false);
-            CHK_MSW(_pbufferDC = wglGetPbufferDCEXT(_pbuffer), return false);
-            _effectiveDC = _pbufferDC;
-        }
+        // create pbuffer
+        CHK_MSW(_pbuffer = wglCreatePbufferEXT(_windowDC, pf, (int)_cp.width, (int)_cp.height, nullptr), return false);
+        CHK_MSW(_pbufferDC = wglGetPbufferDCEXT(_pbuffer), return false);
+        _effectiveDC = _pbufferDC;
 
         // Try creating a formal context using wglCreateContextAttribsARB
         const GLint attributes[] = {
@@ -1237,14 +1252,14 @@ private:
 };
 #endif
 
-gl::RenderContext::RenderContext(const CreationParameters & cp) {
+gl::PBufferRenderContext::PBufferRenderContext(const CreationParameters & cp) {
     RenderContextStack rcs;
     rcs.push();
     _impl = new Impl(cp);
     rcs.pop();
 }
-gl::RenderContext::~RenderContext() { delete _impl; _impl = nullptr; }
-gl::RenderContext & gl::RenderContext::operator=(RenderContext && that) {
+gl::PBufferRenderContext::~PBufferRenderContext() { delete _impl; _impl = nullptr; }
+gl::PBufferRenderContext & gl::PBufferRenderContext::operator=(PBufferRenderContext && that) {
     if (this != &that) {
         delete _impl;
         _impl = that._impl;
@@ -1252,9 +1267,9 @@ gl::RenderContext & gl::RenderContext::operator=(RenderContext && that) {
     }
     return *this;
 }
-bool gl::RenderContext::good() const { return _impl ? _impl->good() : false; }
-void gl::RenderContext::makeCurrent() { if(_impl) _impl->makeCurrent(); }
-void gl::RenderContext::swapBuffers() { if(_impl) _impl->swapBuffers(); }
+bool gl::PBufferRenderContext::good() const { return _impl ? _impl->good() : false; }
+void gl::PBufferRenderContext::makeCurrent() { if(_impl) _impl->makeCurrent(); }
+void gl::PBufferRenderContext::swapBuffers() { if(_impl) _impl->swapBuffers(); }
 
 class gl::RenderContextStack::Impl
 {

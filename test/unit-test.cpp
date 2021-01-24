@@ -39,3 +39,19 @@ TEST_CASE("log", "[base]") {
 TEST_CASE("formatstr", "[base]") {
     CHECK("abcd 10"s == rg::formatstr("abcd %d", 10));
 }
+
+#if HAS_OPENGL
+
+#include "rg/opengl.h"
+
+using namespace rg::gl;
+
+TEST_CASE("context", "[opengl]") {
+
+    SECTION("default creation parameter") {
+        PBufferRenderContext rc({});
+        CHECK(rc.good());
+    }
+}
+
+#endif
