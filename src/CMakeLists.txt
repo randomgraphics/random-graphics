@@ -34,6 +34,9 @@ endif()
 
 add_library(random-graphics ${type} ${sources})
 
+# this is the proper way to enable c++17 that ensure all projects depends on it will also have c++17 enabled.
+target_compile_features(random-graphics PUBLIC cxx_std_17)
+
 if (MSVC)
     target_compile_options(random-graphics PRIVATE /W4 /WX)
 elseif (GCC)
@@ -43,6 +46,7 @@ endif()
 target_compile_definitions(random-graphics
     PUBLIC
         $<$<BOOL:${RG_BUILD_STATIC}>:RG_BUILD_STATIC=1>
+        $<$<CONFIG:Debug>:RG_BUILD_DEBUG=1>
     PRIVATE
         RG_INTERNAL=1
 )

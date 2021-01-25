@@ -5,9 +5,6 @@ project(random-graphics)
 option(RG_BUILD_STATIC "build as static library" ON)
 option(RG_BUILD_TEST "build tests" ON)
 
-# set common compile options
-set(CMAKE_CXX_STANDARD 17) # todo: set it per target?
-
 # search for dependencies
 find_package(OpenGL)
 find_package(Vulkan)
