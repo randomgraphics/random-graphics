@@ -33,13 +33,22 @@ if (VULKAN_FOUND)
 endif()
 
 add_library(random-graphics ${type} ${sources})
+
+if (MSVC)
+    target_compile_options(random-graphics PRIVATE /W4 /WX)
+elseif (GCC)
+    target_compile_options(random-graphics -Wall -Wextra -Werror)
+endif()
+
 target_compile_definitions(random-graphics
     PUBLIC
         $<$<BOOL:${RG_BUILD_STATIC}>:RG_BUILD_STATIC=1>
     PRIVATE
         RG_INTERNAL=1
 )
+
 target_include_directories(random-graphics PUBLIC ../inc)
+
 target_link_libraries(random-graphics ${viz} ${libs})
 if (UNIX)
     target_link_libraries(random-graphics ${viz} atomic dl)

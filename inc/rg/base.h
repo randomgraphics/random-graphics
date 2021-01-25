@@ -323,6 +323,32 @@ const char * formatstr(const char * format, ...);
 /// convert duration in nanoseconds to string
 std::string ns2str(uint64_t ns);
 
+/// call exit function automatically at scope exit
+template<typename PROC>
+class ScopeExit {
+    PROC & _proc;
+    bool _active = true;
+public:
+
+    ScopeExit(PROC && proc) : _proc(proc) {}
+
+    ~ScopeExit() { exit(); }
+
+    RG_NO_COPY(ScopeExit);
+    RG_NO_MOVE(ScopeExit);
+
+    /// manually call the exit function.
+    void exit() {
+        if (_active) {
+            _active = false;
+            _proc();
+        }
+    }
+
+    // dismiss the scope exit action w/o calling it.
+    void dismiss() { _active = false; }
+};
+
 /// Commonly used math constants
 //@{
 inline static constexpr float PI = 3.1415926535897932385f;
