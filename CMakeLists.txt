@@ -8,8 +8,6 @@ option(RG_BUILD_TEST "build tests" ON)
 # search for dependencies
 find_package(OpenGL)
 find_package(Vulkan)
-find_package(Qt5 COMPONENTS Widgets)
-find_package(Qt6 COMPONENTS Widgets)
 
 add_subdirectory(src)
 

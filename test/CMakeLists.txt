@@ -27,6 +27,10 @@ function(add_qt_app target source)
     endif()
 endfunction()
 
+# search for Qt5/6
+find_package(Qt5 COMPONENTS Widgets)
+find_package(Qt6 COMPONENTS Widgets)
+
 # opengl test app
 if (OPENGL_FOUND)
     add_glfw_app(opengl-test opengl-test.cpp)
