@@ -124,6 +124,17 @@
     X(X&&)     = default;             \
     X& operator=(X&&) = default
 
+/// define move semantics for class implemented using pimpl pattern
+#define RG_PIMPL_MOVE(X, pimpl_member, method_to_delete_pimpl) \
+    X(X && w) : pimpl_member(w.pimpl_member) { w.pimpl_member = nullptr; } \
+    X & operator=(X && w) { \
+        if (&w != this) { \
+            this->method_to_delete_pimpl(); \
+            this->pimpl_member = w.pimpl_member; \
+            w.pimpl_member = nullptr; \
+        } \
+    }
+
 /// export/import type decl
 //@{
 #if RG_MSWIN
