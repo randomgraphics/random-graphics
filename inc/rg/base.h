@@ -133,6 +133,7 @@
             this->pimpl_member = w.pimpl_member; \
             w.pimpl_member = nullptr; \
         } \
+        return *this; \
     }
 
 /// export/import type decl
