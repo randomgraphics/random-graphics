@@ -21,29 +21,21 @@
 # include <glad/glad.h>
 #endif
 
-// Check OpenGL error. This check is enabled in both debug and release build.
-#define RG_GLCHK(func, ...)                                                 \
+// Check OpenGL error. Call "actionOnFailure" when GL error is detected.
+#define RG_GLCHK(func, actionOnFailure)                                     \
     if( true ) {                                                            \
         func;                                                               \
         if (!glGetError) {                                                  \
             RG_LOGE("gl not initialized properly...");                      \
-            __VA_ARGS__;                                                    \
+            actionOnFailure;                                                \
         } else {                                                            \
             auto err = glGetError();                                        \
             if (GL_NO_ERROR != err) {                                       \
                 RG_LOGE("function %s failed. (error=0x%x)", #func, err );   \
-                __VA_ARGS__;                                                \
+                actionOnFailure;                                            \
             }                                                               \
         }                                                                   \
     } else void(0)
-
-/// Use RG_GLCHKDBG() at where that you want to have some sanity check in debug build,
-/// but don't want to pay the overhead in release build.
-#if RG_BUILD_DEBUG
-#define RG_GLCHKDBG RG_GLCHK
-#else
-#define RG_GLCHKDBG(x) x
-#endif
 
 namespace rg {
 namespace gl {
@@ -80,7 +72,7 @@ inline void clearScreen(
     if (flags | GL_COLOR_BUFFER_BIT) glClearColor(r, g, b, a);
     if (flags | GL_DEPTH_BUFFER_BIT) glClearDepth(d);
     if (flags | GL_STENCIL_BUFFER_BIT) glClearStencil(s);
-    RG_GLCHKDBG(glClear(flags));
+    glClear(flags);
 }
 
 // -----------------------------------------------------------------------------
@@ -231,9 +223,9 @@ struct QueryObject {
     void allocate() {
         cleanup();
 #ifdef __ANDROID__
-        RG_GLCHKDBG(glGenQueriesEXT(1, &qo));
+        glGenQueriesEXT(1, &qo);
 #else
-        RG_GLCHKDBG(glGenQueries(1, &qo));
+        glGenQueries(1, &qo);
 #endif
         status = IDLE;
     }
@@ -241,9 +233,9 @@ struct QueryObject {
     void begin() {
         if (IDLE == status) {
 #ifdef __ANDROID__
-            RG_GLCHKDBG(glBeginQueryEXT(TARGET, qo));
+            glBeginQueryEXT(TARGET, qo);
 #else
-            RG_GLCHKDBG(glBeginQuery(TARGET, qo));
+            glBeginQuery(TARGET, qo);
 #endif
             status = RUNNING;
         }
@@ -252,9 +244,9 @@ struct QueryObject {
     void end() {
         if (RUNNING == status) {
 #ifdef __ANDROID__
-            RG_GLCHKDBG(glEndQueryEXT(TARGET));
+            glEndQueryEXT(TARGET);
 #else
-            RG_GLCHKDBG(glEndQuery(TARGET));
+            glEndQuery(TARGET);
 #endif
             status = PENDING;
         }
@@ -282,9 +274,9 @@ struct QueryObject {
         if (!available) return false;
 
 #ifdef __ANDROID__
-            RG_GLCHKDBG(glGetQueryObjectui64vEXT(qo, GL_QUERY_RESULT, &result));
+            glGetQueryObjectui64vEXT(qo, GL_QUERY_RESULT, &result);
 #else
-        RG_GLCHKDBG(glGetQueryObjectui64v(qo, GL_QUERY_RESULT, &result));
+        glGetQueryObjectui64v(qo, GL_QUERY_RESULT, &result);
 #endif
         status = IDLE;
         return true;
@@ -321,13 +313,13 @@ struct BufferObject
     void allocate(size_t count, const T * ptr, GLenum usage = GL_STATIC_DRAW)
     {
         cleanup();
-        RG_GLCHK(glGenBuffers(1, &bo));
+        glGenBuffers(1, &bo);
         // Note: ARM Mali GPU doesn't work well with zero sized buffers. So
         // we create buffer that is large enough to hold at least one element.
         length = std::max(count, MIN_GPU_BUFFER_LENGH) * sizeof(T);
-        RG_GLCHK(glBindBuffer(T2, bo));
-        RG_GLCHK(glBufferData(T2, length, ptr, usage));
-        RG_GLCHK(glBindBuffer(T2, 0)); // unbind
+        glBindBuffer(T2, bo);
+        glBufferData(T2, length, ptr, usage);
+        glBindBuffer(T2, 0); // unbind
     }
 
     void cleanup()
@@ -341,35 +333,35 @@ struct BufferObject
     template<typename T, GLenum T2 = TARGET>
     void update(const T * ptr, size_t offset = 0, size_t count = 1)
     {
-        RG_GLCHKDBG(glBindBuffer(T2, bo));
-        RG_GLCHKDBG(glBufferSubData(T2, offset * sizeof(T), count * sizeof(T), ptr));
+        glBindBuffer(T2, bo);
+        glBufferSubData(T2, offset * sizeof(T), count * sizeof(T), ptr);
     }
 
     template<GLenum T2 = TARGET>
     void bind() const {
-        RG_GLCHKDBG(glBindBuffer(T2, bo));
+        glBindBuffer(T2, bo);
     }
 
     template<GLenum T2 = TARGET>
     static void unbind() {
-        RG_GLCHKDBG(glBindBuffer(T2, 0));
+        glBindBuffer(T2, 0);
     }
 
     template<GLenum T2 = TARGET>
     void bindBase(GLuint base) const
     {
-        RG_GLCHKDBG(glBindBufferBase(T2, base, bo));
+        glBindBufferBase(T2, base, bo);
     }
 
     template<typename T, GLenum T2 = TARGET>
     void getData(T * ptr, size_t offset, size_t count)
     {
-        RG_GLCHKDBG(glBindBuffer(T2, bo));
+        glBindBuffer(T2, bo);
         void* mapped = nullptr;
-        RG_GLCHKDBG(mapped = glMapBufferRange(T2, offset * sizeof(T), count * sizeof(T), GL_MAP_READ_BIT));
+        mapped = glMapBufferRange(T2, offset * sizeof(T), count * sizeof(T), GL_MAP_READ_BIT);
         if (mapped) {
             memcpy(ptr, mapped, count * sizeof(T));
-            RG_GLCHKDBG(glUnmapBuffer(T2));
+            glUnmapBuffer(T2);
         }
     }
 
@@ -377,7 +369,7 @@ struct BufferObject
     void* map(size_t offset, size_t count) {
         bind();
         void* ptr = nullptr;
-        RG_GLCHKDBG(ptr = glMapBufferRange(T2, offset, count, GL_MAP_READ_BIT));
+        ptr = glMapBufferRange(T2, offset, count, GL_MAP_READ_BIT);
         RG_ASSERT(ptr);
         mapped_target = TARGET;
         return ptr;
@@ -391,7 +383,7 @@ struct BufferObject
     void unmap() {
         if (mapped_target) {
             bind();
-            RG_GLCHKDBG(glUnmapBuffer(mapped_target));
+            glUnmapBuffer(mapped_target);
             mapped_target = 0;
         }
     }
@@ -496,7 +488,7 @@ public:
     void allocate()
     {
         cleanup();
-        RG_GLCHK(glGenVertexArrays(1, &_va));
+        glGenVertexArrays(1, &_va);
     }
 
     void cleanup()
@@ -506,12 +498,12 @@ public:
 
     void bind() const
     {
-        RG_GLCHKDBG(glBindVertexArray(_va));
+        glBindVertexArray(_va);
     }
 
     void unbind() const
     {
-        RG_GLCHKDBG(glBindVertexArray(0));
+        glBindVertexArray(0);
     }
 
     operator GLuint () const { return _va; }
@@ -565,8 +557,8 @@ public:
 
 inline void bindTexture(GLenum target, uint32_t stage, GLuint texture)
 {
-    RG_GLCHKDBG(glActiveTexture(GL_TEXTURE0 + stage));
-    RG_GLCHKDBG(glBindTexture(target, texture));
+    glActiveTexture(GL_TEXTURE0 + stage);
+    glBindTexture(target, texture);
 }
 
 class TextureObject
@@ -644,7 +636,7 @@ public:
     void cleanup()
     {
         if (_owned && _desc.id) {
-            RG_GLCHK(glDeleteTextures(1, &_desc.id));
+            glDeleteTextures(1, &_desc.id);
         }
         _desc.id = 0;
         _desc.target = GL_NONE;
@@ -657,8 +649,8 @@ public:
 
     void bind(size_t stage) const
     {
-        RG_GLCHKDBG(glActiveTexture(GL_TEXTURE0 + (int)stage));
-        RG_GLCHKDBG(glBindTexture(_desc.target, _desc.id));
+        glActiveTexture(GL_TEXTURE0 + (int)stage);
+        glBindTexture(_desc.target, _desc.id);
     }
 
     void unbind() const { glBindTexture(_desc.target, 0); }
@@ -743,8 +735,8 @@ struct FullScreenQuad
     void draw() const
     {
         RG_ASSERT(va);
-        RG_GLCHKDBG(glBindVertexArray(va));
-        RG_GLCHKDBG(glDrawArrays(GL_TRIANGLES, 0, 3));
+        glBindVertexArray(va);
+        glDrawArrays(GL_TRIANGLES, 0, 3);
     }
 };
 
@@ -823,7 +815,7 @@ public:
 
     void use() const
     {
-        RG_GLCHKDBG(glUseProgram(_program));
+        glUseProgram(_program);
     }
 
     void cleanup()
@@ -883,7 +875,7 @@ public:
     bool init(GLuint program)
     {
         if (program > 0) {
-            RG_GLCHKDBG(_location = glGetUniformLocation(program, _name.c_str()));
+            _location = glGetUniformLocation(program, _name.c_str());
         }
         else {
             _location = -1;

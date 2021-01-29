@@ -162,15 +162,15 @@ void rg::gl::enableDebugRuntime()
     };
 
     if (GLAD_GL_ARB_debug_output) {
-        RG_GLCHK(glDebugMessageCallbackARB(&OGLDebugOutput::messageCallback, nullptr));
-        RG_GLCHK(glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB));
-        RG_GLCHK(glDebugMessageControlARB(
+        glDebugMessageCallbackARB(&OGLDebugOutput::messageCallback, nullptr);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
+        glDebugMessageControlARB(
             GL_DONT_CARE, // source
             GL_DONT_CARE, // type
             GL_DONT_CARE, // severity
             0, // count
             nullptr, // ids
-            GL_TRUE));
+            GL_TRUE);
     }
 }
 
@@ -351,11 +351,11 @@ void rg::gl::TextureObject::allocate2D(GLenum f, size_t w, size_t h, size_t m)
     _desc.depth = (uint32_t)1;
     _desc.mips = (uint32_t)m;
     _owned = true;
-    RG_GLCHK(glGenTextures(1, &_desc.id));
-    RG_GLCHK(glBindTexture(_desc.target, _desc.id));
+    glGenTextures(1, &_desc.id);
+    glBindTexture(_desc.target, _desc.id);
     applyDefaultParameters();
-    RG_GLCHK(glTexStorage2D(_desc.target, (GLsizei)_desc.mips, f, (GLsizei)_desc.width, (GLsizei)_desc.height));
-    RG_GLCHK(glBindTexture(_desc.target, 0));
+    glTexStorage2D(_desc.target, (GLsizei)_desc.mips, f, (GLsizei)_desc.width, (GLsizei)_desc.height);
+    glBindTexture(_desc.target, 0);
 }
 
 // -----------------------------------------------------------------------------
@@ -370,11 +370,11 @@ void rg::gl::TextureObject::allocate2DArray(GLenum f, size_t w, size_t h, size_t
     _desc.depth = (uint32_t)l;
     _desc.mips = (uint32_t)m;
     _owned = true;
-    RG_GLCHK(glGenTextures(1, &_desc.id));
-    RG_GLCHK(glBindTexture(_desc.target, _desc.id));
+    glGenTextures(1, &_desc.id);
+    glBindTexture(_desc.target, _desc.id);
     applyDefaultParameters();
-    RG_GLCHK(glTexStorage3D(_desc.target, (GLsizei)_desc.mips, f, (GLsizei)_desc.width, (GLsizei)_desc.height, (GLsizei)_desc.depth));
-    RG_GLCHK(glBindTexture(_desc.target, 0));
+    glTexStorage3D(_desc.target, (GLsizei)_desc.mips, f, (GLsizei)_desc.width, (GLsizei)_desc.height, (GLsizei)_desc.depth);
+    glBindTexture(_desc.target, 0);
 }
 
 // -----------------------------------------------------------------------------
@@ -389,11 +389,11 @@ void rg::gl::TextureObject::allocateCube(GLenum f, size_t w, size_t m)
     _desc.depth = 6;
     _desc.mips = (uint32_t)m;
     _owned = true;
-    RG_GLCHK(glGenTextures(1, &_desc.id));
-    RG_GLCHK(glBindTexture(GL_TEXTURE_CUBE_MAP, _desc.id));
+    glGenTextures(1, &_desc.id);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, _desc.id);
     applyDefaultParameters();
-    RG_GLCHK(glTexStorage2D(GL_TEXTURE_CUBE_MAP, (GLsizei)_desc.mips, f, (GLsizei)_desc.width, (GLsizei)_desc.width));
-    RG_GLCHK(glBindTexture(_desc.target, 0));
+    glTexStorage2D(GL_TEXTURE_CUBE_MAP, (GLsizei)_desc.mips, f, (GLsizei)_desc.width, (GLsizei)_desc.width);
+    glBindTexture(_desc.target, 0);
 }
 
 void rg::gl::TextureObject::applyDefaultParameters() {
@@ -401,12 +401,12 @@ void rg::gl::TextureObject::applyDefaultParameters() {
     RG_ASSERT(_desc.height > 0);
     RG_ASSERT(_desc.depth > 0);
     RG_ASSERT(_desc.mips > 0);
-    RG_GLCHK(glTexParameteri(_desc.target, GL_TEXTURE_BASE_LEVEL, 0));
-    RG_GLCHK(glTexParameteri(_desc.target, GL_TEXTURE_MAX_LEVEL, _desc.mips - 1));
-    RG_GLCHK(glTexParameteri(_desc.target, GL_TEXTURE_MIN_FILTER, _desc.mips > 1 ? GL_NEAREST_MIPMAP_NEAREST : GL_NEAREST));
-    RG_GLCHK(glTexParameteri(_desc.target, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-    RG_GLCHK(glTexParameteri(_desc.target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
-    RG_GLCHK(glTexParameteri(_desc.target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+    glTexParameteri(_desc.target, GL_TEXTURE_BASE_LEVEL, 0);
+    glTexParameteri(_desc.target, GL_TEXTURE_MAX_LEVEL, _desc.mips - 1);
+    glTexParameteri(_desc.target, GL_TEXTURE_MIN_FILTER, _desc.mips > 1 ? GL_NEAREST_MIPMAP_NEAREST : GL_NEAREST);
+    glTexParameteri(_desc.target, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(_desc.target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(_desc.target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 }
 
 // // -----------------------------------------------------------------------------
@@ -418,7 +418,7 @@ void rg::gl::TextureObject::applyDefaultParameters() {
 //         size_t rowPitchInBytes,
 //         const void * pixels) const {
 //     if (empty()) return;
-//     RG_GLCHKDBG(glBindTexture(_desc.target, _desc.id));
+//     glBindTexture(_desc.target, _desc.id);
 //     auto & cf = getGLenumDesc(_desc.format);
 //     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 //     RG_ASSERT(0 == (rowPitchInBytes * 8 % cf.bits));
@@ -428,23 +428,23 @@ void rg::gl::TextureObject::applyDefaultParameters() {
 //             (GLint)level, (GLint)x, (GLint)y, (GLsizei)w, (GLsizei)h,
 //             cf.glFormat, cf.glType, pixels));
 //     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-//     RG_GLCHK(;);
+//     ;;
 // }
 
 // void rg::gl::TextureObject::setPixels(size_t layer, size_t level, size_t x, size_t y, size_t w, size_t h, size_t rowPitchInBytes, const void* pixels) const
 // {
 //     if (empty()) return;
 
-//     RG_GLCHKDBG(glBindTexture(_desc.target, _desc.id));
+//     glBindTexture(_desc.target, _desc.id);
 //     auto& cf = getGLenumDesc(_desc.format);
 //     RG_ASSERT(0 == (rowPitchInBytes * 8 % cf.bits));
 //     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 //     glPixelStorei(GL_UNPACK_ROW_LENGTH, (int)(rowPitchInBytes * 8 / cf.bits));
 
-//     RG_GLCHKDBG(glTexSubImage3D(_desc.target, (GLint)level, (GLint)x, (GLint)y, (GLint)layer, (GLsizei)w, (GLsizei)h, 1, cf.glFormat, cf.glType, pixels));
+//     glTexSubImage3D(_desc.target, (GLint)level, (GLint)x, (GLint)y, (GLint)layer, (GLsizei)w, (GLsizei)h, 1, cf.glFormat, cf.glType, pixels);
 
 //     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-//     RG_GLCHK(;);
+//     ;;
 // }
 
 // // -----------------------------------------------------------------------------
@@ -460,7 +460,7 @@ void rg::gl::TextureObject::applyDefaultParameters() {
 //         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, _desc.target, _desc.id, 0);
 //         glReadBuffer(GL_COLOR_ATTACHMENT0);
 //         glReadPixels(0, 0, _desc.width, _desc.height, GL_RGBA, GL_UNSIGNED_BYTE, image.data());
-//         RG_GLCHK(;);
+//         ;;
 //     } else {
 //         RG_LOGE("read texture 2D array pixels is not implemented on android yet.");
 //     }
@@ -471,7 +471,7 @@ void rg::gl::TextureObject::applyDefaultParameters() {
 //     glBindTexture(_desc.target, _desc.id);
 //     glGetTexImage(_desc.target, 0, cf.glFormat, cf.glType, image.data());
 //     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-//     RG_GLCHK(;);
+//     ;;
 // #endif
 //     return image;
 // }
@@ -512,13 +512,13 @@ void rg::gl::FullScreenQuad::allocate()
     cleanup();
 
     //Create new array.
-    RG_GLCHK(glGenVertexArrays(1, &va));
-    RG_GLCHK(glBindVertexArray(va));
+    glGenVertexArrays(1, &va);
+    glBindVertexArray(va);
     vb.allocate(sizeof(vertices), vertices);
-    RG_GLCHK(vb.bind());
-    RG_GLCHK(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (const void*)0));
-    RG_GLCHK(glEnableVertexAttribArray(0));
-    RG_GLCHK(glBindVertexArray(0)); // unbind
+    vb.bind();
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (const void*)0);
+    glEnableVertexAttribArray(0);
+    glBindVertexArray(0); // unbind
 }
 
 // -----------------------------------------------------------------------------
@@ -535,7 +535,7 @@ void rg::gl::FullScreenQuad::cleanup()
         //Reset this to mark it as cleaned up.
         va = 0;
     }
-    //RG_GLCHK(;);
+    //;;
 }
 
 // -----------------------------------------------------------------------------
@@ -628,7 +628,7 @@ GLuint rg::gl::linkProgram(const std::vector<GLuint> & shaders, const char* opti
             std::vector<uint8_t> buffer(1024 * 1024 * 1024); // allocate 1MB buffer.
             GLsizei len;
             GLenum dummyFormat;
-            RG_GLCHK(glGetProgramBinary(program, (GLsizei)buffer.size(), &len, &dummyFormat, buffer.data()));
+            glGetProgramBinary(program, (GLsizei)buffer.size(), &len, &dummyFormat, buffer.data());
             fs.write((const char*)buffer.data(), len);
         }
     }
@@ -693,7 +693,9 @@ bool rg::gl::SimpleTextureCopy::init() {
     _quad.allocate();
     glGenFramebuffers(1, &_fbo);
 
-    RG_GLCHK(;); // make sure we have no errors.
+    // make sure we have no errors.
+    RG_GLCHK(, return false);
+
     return true;
 }
 
@@ -753,9 +755,6 @@ void rg::gl::SimpleTextureCopy::copy(const TextureSubResource & src, const Textu
     glViewport(0, 0, dstw, dsth);
     _quad.draw();
     glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
-
-    // done. make sure we are error clean.
-    RG_GLCHKDBG(;);
 }
 
 // -----------------------------------------------------------------------------

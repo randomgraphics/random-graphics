@@ -12,6 +12,8 @@ set(sources
     01-base/image.cpp
 )
 
+set(includes ../inc)
+
 if (OPENGL_FOUND)
     list(APPEND sources 02-opengl/opengl.cpp)
     list(APPEND sources 02-opengl/glad/glad.c)
@@ -29,19 +31,15 @@ if (OPENGL_FOUND)
 endif()
 
 if (VULKAN_FOUND)
+    list(APPEND sources vulkan/vulkan.cpp)
     # TODO: add vulkan sources
+    list(APPEND includes ${Vulkan_INCLUDE_DIRS})
 endif()
 
 add_library(random-graphics ${type} ${sources})
 
 # this is the proper way to enable c++17 that ensure all projects depends on it will also have c++17 enabled.
 target_compile_features(random-graphics PUBLIC cxx_std_17)
-
-if (MSVC)
-    target_compile_options(random-graphics PRIVATE /W4 /WX)
-elseif (GCC)
-    target_compile_options(random-graphics -Wall -Wextra -Werror)
-endif()
 
 target_compile_definitions(random-graphics
     PUBLIC
@@ -51,7 +49,7 @@ target_compile_definitions(random-graphics
         RG_INTERNAL=1
 )
 
-target_include_directories(random-graphics PUBLIC ../inc)
+target_include_directories(random-graphics PUBLIC ${includes})
 
 target_link_libraries(random-graphics ${viz} ${libs})
 if (UNIX)

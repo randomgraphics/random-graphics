@@ -9,7 +9,7 @@ void render() {
     clearScreen(.0f, .5f, .5f);
 }
 
-int main(int argc, char ** argv) {
+int main() {
 
     // initialize GLFW
     if (!glfwInit()) { RG_LOGE("failed to initialize GLFW3."); return -1; }
