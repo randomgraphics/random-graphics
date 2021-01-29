@@ -1,10 +1,3 @@
-# build glfw
-option(GLFW_BUILD_EXAMPLES "" OFF)
-option(GLFW_BUILD_TESTS "" OFF)
-option(GLFW_BUILD_DOCS "" OFF)
-option(GLFW_INSTALL "" OFF)
-add_subdirectory(glfw)
-
 # build unit test
 add_executable(unit-test unit-test.cpp)
 if (OPENGL_FOUND)
@@ -12,11 +5,15 @@ if (OPENGL_FOUND)
 endif()
 target_link_libraries(unit-test PRIVATE random-graphics)
 
+# helper function to build glfw apps
 function(add_glfw_app target source)
     add_executable(${target} ${source})
     target_link_libraries(${target} random-graphics glfw)
 endfunction()
 
+# helper function to build QT apps
+find_package(Qt5 COMPONENTS Widgets)
+find_package(Qt6 COMPONENTS Widgets)
 function(add_qt_app target source)
     if (Qt6Widgets_FOUND)
         add_executable(${target} ${source})

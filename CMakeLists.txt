@@ -9,6 +9,8 @@ option(RG_BUILD_TEST "build tests" ON)
 find_package(OpenGL)
 find_package(Vulkan)
 
+add_subdirectory(3rdparty)
+
 add_subdirectory(src)
 
 if (RG_BUILD_TEST)
