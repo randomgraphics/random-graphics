@@ -27,12 +27,13 @@ function(add_qt_app target source)
     endif()
 endfunction()
 
-# opengl test app
+# opengl tests
 if (OPENGL_FOUND)
     add_glfw_app(opengl-test opengl-test.cpp)
     add_qt_app(qopengl-test qopengl-test.cpp)
 endif()
 
+#
 if (VULKAN_FOUND)
-    # TODO: add vulkan test app
+    add_glfw_app(vulkan-test vulkan-test.cpp)
 endif()
