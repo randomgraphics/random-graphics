@@ -24,6 +24,15 @@ endif()
 
 add_subdirectory(src)
 
+# build glfw only when build test and/or sample folder
+if (RG_BUILD_TEST OR RG_BUILD_SAMPLE)
+    option(GLFW_BUILD_EXAMPLES "" OFF)
+    option(GLFW_BUILD_TESTS "" OFF)
+    option(GLFW_BUILD_DOCS "" OFF)
+    option(GLFW_INSTALL "" OFF)
+    add_subdirectory(3rdparty/glfw)
+endif()
+
 if (RG_BUILD_TEST)
     add_subdirectory(test)
 endif()
