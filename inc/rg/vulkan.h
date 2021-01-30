@@ -13,7 +13,8 @@
 #define RG_VKCHK(func, actionOnFailure) \
     if constexpr (true) { \
         auto result__ = (func); \
-        if ((result__) != VK_SUCCESS) { \
+        /* there are a few positive success code other than VK_SUCCESS */ \
+        if ((result__) < 0) { \
             RG_LOGE("%s failed: %s", #func, rg::vk::VkResultToString(result__)); \
             actionOnFailure; \
         } \
