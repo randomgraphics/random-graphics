@@ -55,7 +55,7 @@ TEST_CASE("formatstr", "[base]") {
 
 #include "rg/opengl.h"
 
-using namespace rg::gl;
+using namespace rg::opengl;
 
 TEST_CASE("context", "[opengl]") {
 

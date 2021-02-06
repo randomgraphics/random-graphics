@@ -38,7 +38,7 @@
     } else void(0)
 
 namespace rg {
-namespace gl {
+namespace opengl {
 
 // -----------------------------------------------------------------------------
 /// initialize all GL/EGL extentions for utlities in header.
@@ -396,8 +396,8 @@ struct BufferObject
 template<typename T, GLenum TARGET, size_t MIN_GPU_BUFFER_LENGTH = 0>
 struct TypedBufferObject
 {
-    std::vector<T>                                  c; // CPU data
-    gl::BufferObject<TARGET, MIN_GPU_BUFFER_LENGTH> g; // GPU data
+    std::vector<T>                              c; // CPU data
+    BufferObject<TARGET, MIN_GPU_BUFFER_LENGTH> g; // GPU data
 
     void allocateGpuBuffer()
     {
@@ -429,9 +429,9 @@ struct TypedBufferObject
 template<typename T, GLenum TARGET1, GLenum TARGET2, size_t MIN_GPU_BUFFER_LENGTH = 0>
 struct TypedBufferObject2
 {
-    std::vector<T>                                   c; // CPU data
-    gl::BufferObject<TARGET1, MIN_GPU_BUFFER_LENGTH> g1; // GPU data
-    gl::BufferObject<TARGET2, MIN_GPU_BUFFER_LENGTH> g2; // GPU data
+    std::vector<T>                               c; // CPU data
+    BufferObject<TARGET1, MIN_GPU_BUFFER_LENGTH> g1; // GPU data
+    BufferObject<TARGET2, MIN_GPU_BUFFER_LENGTH> g2; // GPU data
 
     void allocateGpuBuffer()
     {
@@ -669,7 +669,7 @@ struct DebugSSBO
     std::vector<float> buffer;
     mutable std::vector<float> printed;
     int* counter = nullptr;
-    gl::BufferObject<GL_SHADER_STORAGE_BUFFER> g;
+    BufferObject<GL_SHADER_STORAGE_BUFFER> g;
 
     ~DebugSSBO()
     {
@@ -718,8 +718,8 @@ struct DebugSSBO
 struct FullScreenQuad
 {
     // vertex array
-    GLuint                            va = 0;
-    gl::BufferObject<GL_ARRAY_BUFFER> vb;
+    GLuint                        va = 0;
+    BufferObject<GL_ARRAY_BUFFER> vb;
 
     FullScreenQuad() {}
 
@@ -810,7 +810,7 @@ public:
     //template<typename T>
     //void UpdateUniform(size_t index, const T& value) const
     //{
-    //    gl::UpdateUniformValue(_uniforms[index].location, value);
+    //    UpdateUniformValue(_uniforms[index].location, value);
     //}
 
     void use() const

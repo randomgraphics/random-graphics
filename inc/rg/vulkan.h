@@ -10,18 +10,21 @@
 #include <volk/volk.h>
 #endif
 
+// include Vulkan C++ bindings
+#define VK_NO_PROTOTYPES
+#include <vulkan/vulkan.hpp>
+
 #define RG_VKCHK(func, actionOnFailure) \
     if constexpr (true) { \
         auto result__ = (func); \
         /* there are a few positive success code other than VK_SUCCESS */ \
-        if ((result__) < 0) { \
-            RG_LOGE("%s failed: %s", #func, rg::vk::VkResultToString(result__)); \
+        if (result__ < 0) { \
+            RG_LOGE("%s failed: %s", #func, ::vk::to_string((::vk::Result)result__).c_str()); \
             actionOnFailure; \
         } \
     } else void(0)
 
-
-namespace rg::vk {
+namespace rg::vulkan {
 
 /// convert VKResult to string
 const char * RG_API VkResultToString(VkResult);

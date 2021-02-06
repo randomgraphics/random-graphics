@@ -16,11 +16,11 @@
 #endif
 
 using namespace rg;
-using namespace rg::gl;
+using namespace rg::opengl;
 
 // -----------------------------------------------------------------------------
 //
-bool rg::gl::initExtensions() {
+bool rg::opengl::initExtensions() {
     if (!gladLoadGL()) {
         RG_LOGE("fail to load GL extensions.");
         return 0;
@@ -54,7 +54,7 @@ bool rg::gl::initExtensions() {
 
 // -----------------------------------------------------------------------------
 //
-void rg::gl::enableDebugRuntime()
+void rg::opengl::enableDebugRuntime()
 {
     struct OGLDebugOutput
     {
@@ -191,7 +191,7 @@ getTokens(std::vector<std::string> & tokens, const char* str) {
 
 // -----------------------------------------------------------------------------
 //
-std::string rg::gl::printGLInfo(bool printExtensionList)
+std::string rg::opengl::printGLInfo(bool printExtensionList)
 {
     std::stringstream info;
 
@@ -302,7 +302,7 @@ const char * gl::eglError2String(EGLint err) {
 
 // -----------------------------------------------------------------------------
 //
-void rg::gl::TextureObject::attach(GLenum target, GLuint id) {
+void rg::opengl::TextureObject::attach(GLenum target, GLuint id) {
     cleanup();
     _owned = false;
     _desc.target = target;
@@ -341,7 +341,7 @@ void rg::gl::TextureObject::attach(GLenum target, GLuint id) {
 
 // -----------------------------------------------------------------------------
 //
-void rg::gl::TextureObject::allocate2D(GLenum f, size_t w, size_t h, size_t m)
+void rg::opengl::TextureObject::allocate2D(GLenum f, size_t w, size_t h, size_t m)
 {
     cleanup();
     _desc.target = GL_TEXTURE_2D;
@@ -360,7 +360,7 @@ void rg::gl::TextureObject::allocate2D(GLenum f, size_t w, size_t h, size_t m)
 
 // -----------------------------------------------------------------------------
 //
-void rg::gl::TextureObject::allocate2DArray(GLenum f, size_t w, size_t h, size_t l, size_t m)
+void rg::opengl::TextureObject::allocate2DArray(GLenum f, size_t w, size_t h, size_t l, size_t m)
 {
     cleanup();
     _desc.target = GL_TEXTURE_2D_ARRAY;
@@ -379,7 +379,7 @@ void rg::gl::TextureObject::allocate2DArray(GLenum f, size_t w, size_t h, size_t
 
 // -----------------------------------------------------------------------------
 //
-void rg::gl::TextureObject::allocateCube(GLenum f, size_t w, size_t m)
+void rg::opengl::TextureObject::allocateCube(GLenum f, size_t w, size_t m)
 {
     cleanup();
     _desc.target = GL_TEXTURE_CUBE_MAP;
@@ -396,7 +396,7 @@ void rg::gl::TextureObject::allocateCube(GLenum f, size_t w, size_t m)
     glBindTexture(_desc.target, 0);
 }
 
-void rg::gl::TextureObject::applyDefaultParameters() {
+void rg::opengl::TextureObject::applyDefaultParameters() {
     RG_ASSERT(_desc.width > 0);
     RG_ASSERT(_desc.height > 0);
     RG_ASSERT(_desc.depth > 0);
@@ -411,7 +411,7 @@ void rg::gl::TextureObject::applyDefaultParameters() {
 
 // // -----------------------------------------------------------------------------
 // //
-// void rg::gl::TextureObject::setPixels(
+// void rg::opengl::TextureObject::setPixels(
 //         size_t level,
 //         size_t x, size_t y,
 //         size_t w, size_t h,
@@ -431,7 +431,7 @@ void rg::gl::TextureObject::applyDefaultParameters() {
 //     ;;
 // }
 
-// void rg::gl::TextureObject::setPixels(size_t layer, size_t level, size_t x, size_t y, size_t w, size_t h, size_t rowPitchInBytes, const void* pixels) const
+// void rg::opengl::TextureObject::setPixels(size_t layer, size_t level, size_t x, size_t y, size_t w, size_t h, size_t rowPitchInBytes, const void* pixels) const
 // {
 //     if (empty()) return;
 
@@ -449,7 +449,7 @@ void rg::gl::TextureObject::applyDefaultParameters() {
 
 // // -----------------------------------------------------------------------------
 // //
-// ManagedRawImage rg::gl::TextureObject::getBaseLevelPixels() const {
+// ManagedRawImage rg::opengl::TextureObject::getBaseLevelPixels() const {
 //     if (empty()) return {};
 //     ManagedRawImage image(ImageDesc(_desc.format, _desc.width, _desc.height, _desc.depth));
 // #ifdef __ANDROID__
@@ -478,7 +478,7 @@ void rg::gl::TextureObject::applyDefaultParameters() {
 
 // -----------------------------------------------------------------------------
 //
-std::string rg::gl::DebugSSBO::printLastResult() const
+std::string rg::opengl::DebugSSBO::printLastResult() const
 {
     if (!counter) return {};
     auto count = std::min<size_t>((*counter), buffer.size() - 1);
@@ -500,7 +500,7 @@ std::string rg::gl::DebugSSBO::printLastResult() const
 
 // -----------------------------------------------------------------------------
 //
-void rg::gl::FullScreenQuad::allocate()
+void rg::opengl::FullScreenQuad::allocate()
 {
     const float vertices[] = {
         -1.f, -1.f, 0.f, 1.f,
@@ -523,7 +523,7 @@ void rg::gl::FullScreenQuad::allocate()
 
 // -----------------------------------------------------------------------------
 //
-void rg::gl::FullScreenQuad::cleanup()
+void rg::opengl::FullScreenQuad::cleanup()
 {
     vb.cleanup();
 
@@ -566,7 +566,7 @@ static std::string addLineCount(const std::string & in) {
 
 // -----------------------------------------------------------------------------
 //
-GLuint rg::gl::loadShaderFromString(const char* source, size_t length, GLenum shaderType, const char* optionalFilename)
+GLuint rg::opengl::loadShaderFromString(const char* source, size_t length, GLenum shaderType, const char* optionalFilename)
 {
     if (!source) return 0;
     const char* sources[] = { source };
@@ -602,7 +602,7 @@ GLuint rg::gl::loadShaderFromString(const char* source, size_t length, GLenum sh
 
 // -----------------------------------------------------------------------------
 //
-GLuint rg::gl::linkProgram(const std::vector<GLuint> & shaders, const char* optionalProgramName)
+GLuint rg::opengl::linkProgram(const std::vector<GLuint> & shaders, const char* optionalProgramName)
 {
     auto program = glCreateProgram();
     for (auto s : shaders) if (s) glAttachShader(program, s);
@@ -641,7 +641,7 @@ GLuint rg::gl::linkProgram(const std::vector<GLuint> & shaders, const char* opti
 
 // -----------------------------------------------------------------------------
 //
-bool rg::gl::SimpleTextureCopy::init() {
+bool rg::opengl::SimpleTextureCopy::init() {
     const char * vscode = R"(#version 320 es
         out vec2 v_uv;
         void main()
@@ -701,7 +701,7 @@ bool rg::gl::SimpleTextureCopy::init() {
 
 // -----------------------------------------------------------------------------
 //
-void rg::gl::SimpleTextureCopy::cleanup() {
+void rg::opengl::SimpleTextureCopy::cleanup() {
     _programs.clear();
     _quad.cleanup();
     if (_fbo) glDeleteFramebuffers(1, &_fbo), _fbo = 0;
@@ -710,7 +710,7 @@ void rg::gl::SimpleTextureCopy::cleanup() {
 
 // -----------------------------------------------------------------------------
 //
-void rg::gl::SimpleTextureCopy::copy(const TextureSubResource & src, const TextureSubResource & dst) {
+void rg::opengl::SimpleTextureCopy::copy(const TextureSubResource & src, const TextureSubResource & dst) {
     // get destination texture size
     uint32_t dstw = 0, dsth = 0;
     glBindTexture(dst.target, dst.id);
@@ -759,7 +759,7 @@ void rg::gl::SimpleTextureCopy::copy(const TextureSubResource & src, const Textu
 
 // -----------------------------------------------------------------------------
 //
-void rg::gl::GpuTimeElapsedQuery::stop() {
+void rg::opengl::GpuTimeElapsedQuery::stop() {
     if (_q.running()) {
         _q.end();
     }
@@ -770,13 +770,13 @@ void rg::gl::GpuTimeElapsedQuery::stop() {
 
 // -----------------------------------------------------------------------------
 //
-std::string rg::gl::GpuTimeElapsedQuery::print() const {
+std::string rg::opengl::GpuTimeElapsedQuery::print() const {
     return name + " : " + ns2str(duration());
 }
 
 // -----------------------------------------------------------------------------
 //
-std::string rg::gl::GpuTimestamps::print(const char * ident) const {
+std::string rg::opengl::GpuTimestamps::print(const char * ident) const {
     if (_marks.size() < 2) return {};
     std::stringstream ss;
     GLuint64 startTime = _marks[0].result;
@@ -814,7 +814,7 @@ std::string rg::gl::GpuTimestamps::print(const char * ident) const {
 
 #define RG_EGLCHK(x, failed_action) if (!(x)) { RG_LOGE(#x " failed: %s", gl::eglError2String(eglGetError())); failed_action; } else void(0)
 
-class rg::gl::PBufferRenderContext::Impl
+class rg::opengl::PBufferRenderContext::Impl
 {
 public:
     
@@ -1041,7 +1041,7 @@ static inline const char * getLastErrorString() {
 #pragma warning(disable: 4706) // assignment within conditional expression
 #define CHK_MSW(x, y) if (!(x)) { RG_LOGE(#x " failed: %s", getLastErrorString()); y; } else void(0)
 
-class gl::PBufferRenderContext::Impl {
+class rg::opengl::PBufferRenderContext::Impl {
 public:
 
     Impl(const CreationParameters & cp) : _cp(cp) {
@@ -1279,14 +1279,14 @@ private:
 };
 #endif
 
-gl::PBufferRenderContext::PBufferRenderContext(const CreationParameters & cp) {
+rg::opengl::PBufferRenderContext::PBufferRenderContext(const CreationParameters & cp) {
     RenderContextStack rcs;
     rcs.push();
     _impl = new Impl(cp);
     rcs.pop();
 }
-gl::PBufferRenderContext::~PBufferRenderContext() { delete _impl; _impl = nullptr; }
-gl::PBufferRenderContext & gl::PBufferRenderContext::operator=(PBufferRenderContext && that) {
+rg::opengl::PBufferRenderContext::~PBufferRenderContext() { delete _impl; _impl = nullptr; }
+rg::opengl::PBufferRenderContext & rg::opengl::PBufferRenderContext::operator=(PBufferRenderContext && that) {
     if (this != &that) {
         delete _impl;
         _impl = that._impl;
@@ -1294,11 +1294,11 @@ gl::PBufferRenderContext & gl::PBufferRenderContext::operator=(PBufferRenderCont
     }
     return *this;
 }
-bool gl::PBufferRenderContext::good() const { return _impl ? _impl->good() : false; }
-void gl::PBufferRenderContext::makeCurrent() { if(_impl) _impl->makeCurrent(); }
-void gl::PBufferRenderContext::swapBuffers() { if(_impl) _impl->swapBuffers(); }
+bool rg::opengl::PBufferRenderContext::good() const { return _impl ? _impl->good() : false; }
+void rg::opengl::PBufferRenderContext::makeCurrent() { if(_impl) _impl->makeCurrent(); }
+void rg::opengl::PBufferRenderContext::swapBuffers() { if(_impl) _impl->swapBuffers(); }
 
-class gl::RenderContextStack::Impl
+class rg::opengl::RenderContextStack::Impl
 {
     struct OpenGLRC {
 #if RG_HAS_EGL
@@ -1362,8 +1362,8 @@ public:
         }
     }
 };
-gl::RenderContextStack::RenderContextStack() : _impl(new Impl()) {}
-gl::RenderContextStack::~RenderContextStack() { delete _impl; }
-void gl::RenderContextStack::push() { _impl->push(); }
-void gl::RenderContextStack::apply() { _impl->apply(); }
-void gl::RenderContextStack::pop() { _impl->pop(); }
+rg::opengl::RenderContextStack::RenderContextStack() : _impl(new Impl()) {}
+rg::opengl::RenderContextStack::~RenderContextStack() { delete _impl; }
+void rg::opengl::RenderContextStack::push() { _impl->push(); }
+void rg::opengl::RenderContextStack::apply() { _impl->apply(); }
+void rg::opengl::RenderContextStack::pop() { _impl->pop(); }

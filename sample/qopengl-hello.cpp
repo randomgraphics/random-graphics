@@ -9,7 +9,7 @@
 #include <QOpenGLContext>
 
 using namespace rg;
-using namespace rg::gl;
+using namespace rg::opengl;
 
 void render() {
     clearScreen(.0f, .5f, .5f);

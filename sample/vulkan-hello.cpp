@@ -3,7 +3,7 @@
 #include <sstream>
 
 using namespace rg;
-using namespace rg::vk;
+using namespace rg::vulkan;
 
 struct SimpleVulkanDevice {
 
