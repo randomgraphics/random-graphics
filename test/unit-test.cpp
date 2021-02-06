@@ -19,6 +19,7 @@ struct LogData {
 TEST_CASE("log", "[base]") {
     LogData data;
     setLogCallback({LogData::func, &data});
+    auto end = ScopeExit([]{ setLogCallback({}); }); // restore default log callback at the end.
 
     RG_LOGI("printf style log %d", 1);
     CHECK(data.log == "printf style log 1"); data.log.clear();
@@ -32,8 +33,18 @@ TEST_CASE("log", "[base]") {
     auto ctrl = rg::log::Controller::getInstance("tag2");
     RG_LOG(ctrl, I, "log with external controller instance");
     CHECK(data.tag == "tag2");
-    
-    setLogCallback({});
+
+    // Log and return one-liner.
+    auto foo = [](bool b){
+        if (b)
+            return RG_LOGI("true"), true;
+        else
+            return RG_LOGI("false"), false;
+    };
+    CHECK(foo(true));
+    CHECK(data.log == "true");
+    CHECK(!foo(false));
+    CHECK(data.log == "false");
 }
 
 TEST_CASE("formatstr", "[base]") {

@@ -46,12 +46,12 @@
 
 /// Log macros
 //@{
-#define RG_LOG(tag__, severity, ...) do { \
+#define RG_LOG(tag__, severity, ...) [&]() -> void { \
     using namespace rg::log::macros; \
     auto ctrl__ = rg::log::Controller::getInstance(tag__); \
     if (ctrl__->enabled(severity)) { \
         rg::log::Helper(ctrl__->tag().c_str(), __FILE__, __LINE__, __FUNCTION__, (int)severity)(__VA_ARGS__); \
-    } } while(0)
+    } }()
 #define RG_LOGE(...) RG_LOG(, E, __VA_ARGS__)
 #define RG_LOGW(...) RG_LOG(, W, __VA_ARGS__)
 #define RG_LOGI(...) RG_LOG(, I, __VA_ARGS__)
