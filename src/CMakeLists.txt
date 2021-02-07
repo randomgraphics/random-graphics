@@ -32,7 +32,6 @@ endif()
 
 if (VULKAN_FOUND)
     list(APPEND sources vulkan/vulkan.cpp)
-    # TODO: add vulkan sources
     list(APPEND includes ${Vulkan_INCLUDE_DIRS})
 endif()
 
