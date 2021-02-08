@@ -6,6 +6,7 @@
 // #define STBI_REALLOC rg::HeapMemory::realloc
 // #define STBI_FREE rg::HeapMemory::dealloc
 #include "stb_image.h"
+#include <algorithm>
    
 using namespace rg;
 
