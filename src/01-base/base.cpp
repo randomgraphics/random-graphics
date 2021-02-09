@@ -4,10 +4,17 @@
 #include <stdarg.h>
 #include <signal.h>
 
+#if RG_MSWIN
+#include <windows.h>
+#endif
+
 // -----------------------------------------------------------------------------
 //
 [[noreturn]] void rg::rip() {
     RG_LOG(, F, backtrace().c_str());
+#if RG_MSWIN
+    ::DebugBreak(); // Break into debugger if there is one.
+#endif
     raise(SIGSEGV);
     throw "rip";
 }
