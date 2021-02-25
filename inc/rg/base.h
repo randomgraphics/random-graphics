@@ -38,6 +38,16 @@
 #endif
 //@}
 
+/// determine if the current platform is 32 or 64 bit
+#if defined(__LP64__) || defined(_WIN64) || (defined(__x86_64__) && !defined(__ILP32__) ) || \
+    defined(_M_X64) || defined(__ia64) || defined (_M_IA64) || defined(__aarch64__) || defined(__powerpc64__)
+#define RG_64BIT 1
+#define RG_32BIT 0
+#else
+#define RG_64BIT 0
+#define RG_32BIT 1
+#endif
+
 // Disable some known "harmless" warnings. So we can use /W4 throughout our code base.
 #ifdef _MSC_VER
 #pragma warning(disable : 4201) // nameless struct/union
