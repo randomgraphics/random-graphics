@@ -2,6 +2,17 @@
 #include "rg/vulkan.h"
 #include <sstream>
 
+#if RG_ANDROID
+constexpr VkResult VK_ERROR_UNKNOWN = (VkResult)-13;
+constexpr VkResult VK_THREAD_IDLE_KHR = (VkResult)1000268000;
+constexpr VkResult VK_THREAD_DONE_KHR = (VkResult)1000268001;
+constexpr VkResult VK_OPERATION_DEFERRED_KHR = (VkResult)1000268002;
+constexpr VkResult VK_OPERATION_NOT_DEFERRED_KHR = (VkResult)1000268003;
+constexpr VkResult VK_PIPELINE_COMPILE_REQUIRED_EXT = (VkResult)1000297000;
+constexpr VkResult VK_ERROR_FRAGMENTATION = VK_ERROR_FRAGMENTATION_EXT;
+constexpr VkResult VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS = VK_ERROR_INVALID_DEVICE_ADDRESS_EXT;
+#endif
+
 const char * RG_API rg::vulkan::VkResultToString(VkResult r) {
     switch (r) {
         case VK_SUCCESS : return "VK_SUCCESS";
