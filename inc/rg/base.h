@@ -164,20 +164,14 @@
 #endif
 //@}
 
-/// endianess
+/// endianness
 //@{
-#if defined(__LITTLE_ENDIAN__) || defined(__BIG_ENDIAN__)
-#define RG_LITTLE_ENDIAN defined(__LITTLE_ENDIAN__) ///< true on little endian machine
-#define RG_BIT_ENDIAN    defined(__BIG_ENDIAN__)    ///< true on big endian machine
-#elif defined(_PPC_)
+#if defined(_PPC_) || defined(__BIG_ENDIAN__)
 #define RG_LITTLE_ENDIAN  0
 #define RG_BIG_ENDIAN     1
 #else
 #define RG_LITTLE_ENDIAN  1
 #define RG_BIG_ENDIAN     0
-#endif
-#if !( RG_LITTLE_ENDIAN ^ RG_BIG_ENDIAN )
-#error Must be either little engine or big endian.
 #endif
 //@}
 
