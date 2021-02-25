@@ -2,6 +2,10 @@
 #include "internal-helpers.h"
 #include <stdarg.h>
 #include <atomic>
+#include <sstream>
+#if RG_MSWIN
+#include <windows.h>
+#endif
 
 using namespace rg;
 using namespace rg::log;
@@ -23,12 +27,27 @@ static inline std::string sev2str(int sev) {
 
 // ---------------------------------------------------------------------------------------------------------------------
 //
+static void writeToDebuggerOutput(const std::string & messageWithNewLine) {
+#if RG_MSWIN
+    ::OutputDebugStringA(messageWithNewLine.c_str());
+#else
+    // GDB/LLDB ?
+    (void)messageWithNewLine;
+#endif
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+//
 static void defaultLogCallback(void *, const LogDesc & desc, const char * text) {
     if (!text || !*text) return;
     if (desc.severity >= rg::log::macros::I) {
         fprintf(stdout, "[%s] %s\n", sev2str(desc.severity).c_str(),  text);
     } else {
-        fprintf(stderr, "[%s] %s(%d): %s\n", sev2str(desc.severity).c_str(), desc.file, desc.line, text);
+        std::stringstream ss;
+        ss << "[" << sev2str(desc.severity) << "] " << desc.file << ":" << desc.line << " - " << text << std::endl;
+        auto str = ss.str();
+        fprintf(stderr, str.c_str());
+        writeToDebuggerOutput(str);
     }
 }
 RG_API std::atomic<LogCallback> globalLogCallback = { { defaultLogCallback, nullptr } };
