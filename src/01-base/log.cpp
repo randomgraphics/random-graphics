@@ -70,7 +70,7 @@ static void writeToSystemLog(int severity, const std::string & messageWithNewLin
 //
 static void defaultLogCallback(void *, const LogDesc & desc, const char * text) {
     if (!text || !*text) return;
-    
+
     std::stringstream ss;
     FILE * fp;
     if (desc.severity >= rg::log::macros::I) {
