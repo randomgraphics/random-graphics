@@ -6,6 +6,8 @@
 #if !defined(VULKAN_H_) || defined(VK_NO_PROTOTYPES)
 #if RG_MSWIN && !defined(VK_USE_PLATFORM_WIN32_KHR)
 #define VK_USE_PLATFORM_WIN32_KHR
+#elif RG_ANDROID && !defined(VK_USE_PLATFORM_ANDROID_KHR)
+#define VK_USE_PLATFORM_ANDROID_KHR
 #endif
 #include <volk/volk.h>
 #endif
