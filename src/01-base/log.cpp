@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <atomic>
 #include <sstream>
+#include <iomanip>
 #if RG_MSWIN
 #include <windows.h>
 #elif RG_ANDROID
@@ -30,10 +31,7 @@ static inline std::string sev2str(int sev) {
 // ---------------------------------------------------------------------------------------------------------------------
 //
 static void writeToSystemLog(int severity, const std::string & messageWithNewLine) {
-#if RG_MSWIN
-    (void)severity;
-    ::OutputDebugStringA(messageWithNewLine.c_str());
-#elif RG_ANDROID
+#if RG_ANDROID
     int priority;
     if (severity <= rg::log::macros::F) {
         priority = ANDROID_LOG_FATAL;
@@ -46,18 +44,18 @@ static void writeToSystemLog(int severity, const std::string & messageWithNewLin
     } else {
         priority = ANDROID_LOG_VERBOSE;
     }
-    {
-        std::istringstream text(messageWithNewLine);
-        static std::mutex m;
-        std::lock_guard<std::mutex> guard(m); // this is to prevent log from different threads to get interleaved with each other.
-        // static std::string logFileName = getLogFileName();
-        // std::ofstream f(logFileName, std::ios_base::app);
-        // auto prefix = getLogPrefix();
-        std::string l;
-        while (std::getline(text, l)) {
-            __android_log_print(priority, "RandomG", "%s", l.c_str());
-            // f << prefix << tag << l << std::endl;
-        }
+
+    // Android logcat has about 4K limit of the single log size. We sometimes generate very long log, like
+    // shader compile errors. To avoid hitting the limit, we split the log into lines, with the assumption
+    // that a single-line log message will rarely hit Android's limit.
+    std::istringstream text(messageWithNewLine);
+    static std::mutex m;
+     // hold a log to prevent log from different threads being interleaved.
+    std::lock_guard<std::mutex> guard(m);
+    std::string line;
+    while (std::getline(text, line)) {
+        __android_log_print(priority, "RandomG", "%s", line.c_str());
+        // f << prefix << tag << l << std::endl;
     }
 #else
     // GDB/LLDB ?
@@ -71,20 +69,48 @@ static void writeToSystemLog(int severity, const std::string & messageWithNewLin
 static void defaultLogCallback(void *, const LogDesc & desc, const char * text) {
     if (!text || !*text) return;
 
+    // determine log prefix based on severity
+    std::stringstream prefixStream;
+    prefixStream << "[" << sev2str(desc.severity) << "] ";
+    auto prefix = prefixStream.str();
+
+    // create a space indentation in the same length as the prefix
+    std::string indent;
+    indent.insert(0, prefix.size(), ' ');
+
+    // now indent the message text.
     std::stringstream ss;
+    std::istringstream iss(text);
+    std::string line;
+    int lineCount = 0;
+    while (std::getline(iss, line)) {
+        if (0 == lineCount) {
+            // this is the 1st line of the log
+            ss << prefix;
+            if (desc.severity < rg::log::macros::I) {
+                ss << desc.file << ":" << desc.line << " - ";
+            }
+            ss << line << std::endl;
+        } else {
+            ss << indent << line << std::endl;
+        }
+        // f << prefix << tag << l << std::endl;
+        ++lineCount;
+    }
+
+    // determine the output file descriptor
     FILE * fp;
     if (desc.severity >= rg::log::macros::I) {
-        ss << "[" << sev2str(desc.severity) << "] " << text << std::endl;
         fp = stdout;
-        fprintf(stdout, "[%s] %s\n", sev2str(desc.severity).c_str(),  text);
     } else {
-        ss << "[" << sev2str(desc.severity) << "] " << desc.file << ":" << desc.line << " - " << text << std::endl;
         fp = stderr;
     }
 
+    // write to file
     auto str = ss.str();
     fprintf(fp, "%s", str.c_str());
-    
+
+    // write to system log
     writeToSystemLog(desc.severity, str);
 }
 
