@@ -11,9 +11,6 @@
 #include <sstream>
 #include <cstring>
 
-#if !RG_BUILD_STATIC
-# define GLAD_GLAPI_EXPORT
-#endif
 #if RG_MSWIN
 # include <glad/glad_wgl.h>
 #elif RG_UNIX_LIKE
@@ -93,9 +90,9 @@ inline GLint getInt(GLenum name, GLint i)
 
 // -----------------------------------------------------------------------------
 //
-#if RG_HAS_EGL
+//#if RG_HAS_EGL
 const char * eglError2String(khronos_int32_t err);
-#endif
+//#endif
 
 // -----------------------------------------------------------------------------
 //

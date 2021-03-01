@@ -30,7 +30,7 @@ static inline std::string sev2str(int sev) {
 
 // ---------------------------------------------------------------------------------------------------------------------
 //
-static void writeToSystemLog(int severity, const std::string & messageWithNewLine) {
+static void writeToSystemLog(const char * tag, int severity, const std::string & messageWithNewLine) {
 #if RG_ANDROID
     int priority;
     if (severity <= rg::log::macros::F) {
@@ -54,11 +54,12 @@ static void writeToSystemLog(int severity, const std::string & messageWithNewLin
     std::lock_guard<std::mutex> guard(m);
     std::string line;
     while (std::getline(text, line)) {
-        __android_log_print(priority, "RandomG", "%s", line.c_str());
+        __android_log_print(priority, tag, "%s", line.c_str());
         // f << prefix << tag << l << std::endl;
     }
 #else
     // GDB/LLDB ?
+    (void)tag;
     (void)severity;
     (void)messageWithNewLine;
 #endif
@@ -111,13 +112,13 @@ static void defaultLogCallback(void *, const LogDesc & desc, const char * text) 
     fprintf(fp, "%s", str.c_str());
 
     // write to system log
-    writeToSystemLog(desc.severity, str);
+    writeToSystemLog(desc.tag, desc.severity, str);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
 //
-RG_API std::atomic<LogCallback> globalLogCallback = { { defaultLogCallback, nullptr } };
-RG_API LogCallback rg::setLogCallback(LogCallback lc) {
+std::atomic<LogCallback> globalLogCallback = { { defaultLogCallback, nullptr } };
+LogCallback rg::setLogCallback(LogCallback lc) {
     if (!lc.func) lc.func = defaultLogCallback;
     return globalLogCallback.exchange(lc);
 }
@@ -125,7 +126,7 @@ RG_API LogCallback rg::setLogCallback(LogCallback lc) {
 // ---------------------------------------------------------------------------------------------------------------------
 //
 rg::log::Controller::Globals::Globals() {
-    root = new Controller("");
+    root = new Controller("RandomG");
     severity = rg::log::macros::I;
 }
 

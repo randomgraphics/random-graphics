@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.9)
 
 project(random-graphics)
 
-option(RG_BUILD_STATIC "build as static library" ON)
 option(RG_BUILD_TEST "build tests" ON)
 option(RG_BUILD_SAMPLE "build sample apps" ON)
 option(RG_BUILD_OPENGL "build opengl support" ON)

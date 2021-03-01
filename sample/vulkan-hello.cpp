@@ -423,6 +423,7 @@ struct SimpleVulkanFrameBuffer {
 
     bool init(const InitParameters &) {
         cleanup();
+        return true;
     }
 
     void cleanup() {

@@ -13,7 +13,7 @@ constexpr VkResult VK_ERROR_FRAGMENTATION = VK_ERROR_FRAGMENTATION_EXT;
 constexpr VkResult VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS = VK_ERROR_INVALID_DEVICE_ADDRESS_EXT;
 #endif
 
-const char * RG_API rg::vulkan::VkResultToString(VkResult r) {
+const char * rg::vulkan::VkResultToString(VkResult r) {
     switch (r) {
         case VK_SUCCESS : return "VK_SUCCESS";
         case VK_NOT_READY : return "VK_NOT_READY";

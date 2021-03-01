@@ -25,6 +25,6 @@
 namespace rg::vulkan {
 
 /// convert VKResult to string
-const char * RG_API VkResultToString(VkResult);
+const char * VkResultToString(VkResult);
 
 }

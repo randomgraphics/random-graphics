@@ -262,7 +262,7 @@ std::string rg::opengl::printGLInfo(bool printExtensionList)
 // -----------------------------------------------------------------------------
 //
 #if RG_HAS_EGL
-const char * gl::eglError2String(EGLint err) {
+const char * rg::opengl::eglError2String(EGLint err) {
     switch(err) {
         case EGL_SUCCESS:
             return "The last function succeeded without error.";
@@ -812,7 +812,7 @@ std::string rg::opengl::GpuTimestamps::print(const char * ident) const {
 
 #if RG_HAS_EGL
 
-#define RG_EGLCHK(x, failed_action) if (!(x)) { RG_LOGE(#x " failed: %s", gl::eglError2String(eglGetError())); failed_action; } else void(0)
+#define RG_EGLCHK(x, failed_action) if (!(x)) { RG_LOGE(#x " failed: %s", ::rg::opengl::eglError2String(eglGetError())); failed_action; } else void(0)
 
 class rg::opengl::PBufferRenderContext::Impl
 {

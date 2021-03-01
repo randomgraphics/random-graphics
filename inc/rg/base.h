@@ -17,11 +17,6 @@
 #endif
 #endif
 
-/// Set RG_BUILD_STATIC to 0 to built as shared library.
-#ifndef RG_BUILD_STATIC
-#define RG_BUILD_STATIC 1
-#endif
-
 /// determine operating system
 //@{
 #if defined(_WIN32)
@@ -146,24 +141,6 @@
         return *this; \
     }
 
-/// export/import type decl
-//@{
-#if RG_MSWIN
-#define RG_IMPORT __declspec(dllimport)
-#define RG_EXPORT __declspec(dllexport)
-#else
-#define RG_IMPORT
-#define RG_EXPORT
-#endif
-#if RG_BUILD_STATIC
-#define RG_API
-#elif defined(RG_INTERNAL)
-#define RG_API RG_EXPORT
-#else
-#define RG_API RG_IMPORT
-#endif
-//@}
-
 /// endianness
 //@{
 #if defined(_PPC_) || defined(__BIG_ENDIAN__)
@@ -194,7 +171,7 @@ struct LogCallback {
 /// Set log callback.
 /// \param lc set to null to restore to default callback.
 /// \return returns the current callback function pointer.
-RG_API LogCallback setLogCallback(LogCallback lc);
+LogCallback setLogCallback(LogCallback lc);
 
 namespace log { // namespace for log implementation details
 

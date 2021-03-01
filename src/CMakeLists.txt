@@ -1,11 +1,3 @@
-if (RG_BUILD_STATIC)
-    set(type STATIC)
-    set(viz  PUBLIC)
-else()
-    set(type SHARED)
-    set(viz  PRIVATE)
-endif()
-
 set(sources
     01-base/base.cpp
     01-base/log.cpp
@@ -35,14 +27,13 @@ if (VULKAN_FOUND)
     list(APPEND includes ${Vulkan_INCLUDE_DIRS})
 endif()
 
-add_library(random-graphics ${type} ${sources})
+add_library(random-graphics STATIC ${sources})
 
 # this is the proper way to enable c++17 that ensure all projects depends on it will also have c++17 enabled.
 target_compile_features(random-graphics PUBLIC cxx_std_17)
 
 target_compile_definitions(random-graphics
     PUBLIC
-        $<$<BOOL:${RG_BUILD_STATIC}>:RG_BUILD_STATIC=1>
         $<$<CONFIG:Debug>:RG_BUILD_DEBUG=1>
     PRIVATE
         RG_INTERNAL=1
@@ -50,7 +41,7 @@ target_compile_definitions(random-graphics
 
 target_include_directories(random-graphics PUBLIC ${includes})
 
-target_link_libraries(random-graphics ${viz} ${libs})
+target_link_libraries(random-graphics PUBLIC ${libs})
 if (UNIX)
-    target_link_libraries(random-graphics ${viz} atomic dl)
+    target_link_libraries(random-graphics PUBLIC atomic dl)
 endif()
