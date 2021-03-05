@@ -652,7 +652,7 @@ union ColorFormat {
     /// construct from individual properties
     ///
     static constexpr ColorFormat make(Layout l, Sign si012, Sign si3, Swizzle sw0, Swizzle sw1, Swizzle sw2, Swizzle sw3) {
-        return {
+        return {{
             (unsigned int)l,
             (unsigned int)si012,
             (unsigned int)si3,
@@ -661,7 +661,7 @@ union ColorFormat {
             (unsigned int)sw2,
             (unsigned int)sw3,
             0,
-        };
+        }};
     }
 
     ///
