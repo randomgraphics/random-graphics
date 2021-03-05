@@ -3,20 +3,23 @@
 #include <iomanip>
 #include <stdarg.h>
 #include <signal.h>
-
-#if RG_MSWIN
-#include <windows.h>
-#endif
+#include <sstream>
 
 // -----------------------------------------------------------------------------
 //
 [[noreturn]] void rg::rip() {
     RG_LOG(, F, backtrace().c_str());
-#if RG_MSWIN
-    ::DebugBreak(); // Break into debugger if there is one.
-#endif
-    raise(SIGSEGV);
+    raise(SIGTRAP);
     throw "rip";
+}
+
+// -----------------------------------------------------------------------------
+//
+[[noreturn]] void rg::throwRuntimeErrorException(const char * file, int line, const char * message) {
+    std::stringstream ss;
+    ss << file << ":" << line << " - " << message << std::endl
+       << backtrace() << std::endl;
+    throw std::runtime_error(ss.str());
 }
 
 // -----------------------------------------------------------------------------

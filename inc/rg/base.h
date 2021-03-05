@@ -78,12 +78,20 @@
 #define RG_DLOGB(...) RG_DLOG(, B, __VA_ARGS__)
 //@}
 
-/// call this when encountering unrecoverable error.
+/// Call this only when encountering unrecoverable error that you truely want to quit the app immediately.
+/// In most cases, just call RG_THROW to give caller a chance to handle the exception.
 #define RG_RIP(...)                         \
     do {                                    \
         RG_LOG(, F, "[RIP] " __VA_ARGS__);  \
         rg::rip();                          \
     } while (0)
+
+/// throw std::runtime_error exception with source location information
+#define RG_THROW(message, ...) do { \
+        const char * theExceptionMessage_ = ::rg::formatstr(message, ##__VA_ARGS__); \
+        RG_LOGE("%s", theExceptionMessage_); \
+        ::rg::throwRuntimeErrorException(__FILE__, __LINE__, theExceptionMessage_); \
+    } while(0)
 
 /// Check for required condition, call the failure clause if the condition is not met.
 #define RG_CHK(x, action_on_false)                      \
@@ -94,15 +102,15 @@
         void(0)
 
 /// Check for required conditions. call RIP when the condition is not met.
-#define RG_RIP_IF_NOT(x)  RG_CHK(x, rg::rip())
+#define RG_REQUIRE(x)  RG_CHK(x, RG_THROW(#x))
 
 /// Runtime assertion
 //@{
 #if RG_BUILD_DEBUG
-#define RG_ASSERT(x, ...)              \
-    if (!(x)) {                        \
-        RG_RIP("ASSERT failure: "#x);  \
-    } else                             \
+#define RG_ASSERT(x, ...)                   \
+    if (!(x)) {                             \
+        RG_THROW("ASSERT failure: %s", #x); \
+    } else                                  \
         void(0)
 #else
 #define RG_ASSERT(...) (void) 0
@@ -299,6 +307,9 @@ public:
 
 /// Force termination of the current process.
 [[noreturn]] void rip();
+
+/// Instead of embed it in a macro. make this a utility function to make it easier to set debug break point on it.
+[[noreturn]] void throwRuntimeErrorException(const char * file, int line, const char * message);
 
 /// dump current callstck to string
 std::string backtrace();
