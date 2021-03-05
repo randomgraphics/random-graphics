@@ -230,13 +230,12 @@ rg::RawImage::RawImage(ImageDesc&& desc, const void * initialContent, size_t ini
     }
 }
 
+#pragma GCC diagnostic error "-Wunused-variable"
+
 //
 //
 // -----------------------------------------------------------------------------
 rg::RawImage rg::RawImage::load(std::istream & fp) {
-    // store the starting point
-    auto begin = fp.tellg();
-
     // setup stbi io callback
     stbi_io_callbacks io = {};
     io.read = [](void* user, char* data, int size) -> int {

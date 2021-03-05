@@ -11,5 +11,5 @@
             va_start(args, format); n = vsnprintf(buf.data(), buf.size(), format, args); va_end(args); \
         } \
         RG_ASSERT((size_t)n < buf.size()); \
-        buf[n] = 0; \
+        buf[(size_t)n] = 0; \
     } while(0)
