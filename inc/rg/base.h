@@ -19,18 +19,31 @@
 
 /// determine operating system
 //@{
-#if defined(_WIN32)
+#ifdef _WIN32
 #define RG_MSWIN 1
-#elif defined(__APPLE__)
-#define RG_UNIX_LIKE 1
+#else
+#define RG_MSWIN 0
+#endif
+
+#ifdef __APPLE__
 #define RG_DARWIN 1
-#elif defined(__linux__)
-#define RG_UNIX_LIKE 1
+#else
+#define RG_DARWIN 0
+#endif
+
+#ifdef __linux__
 #define RG_LINUX 1
+#else
+#define RG_LINUX 0
+#endif
+
 #ifdef __ANDROID__
 #define RG_ANDROID 1
+#else
+#define RG_ANDROID 0
 #endif
-#endif
+
+#define RG_UNIX_LIKE (RG_DARWIN || RG_LINUX || RG_ANDROID)
 //@}
 
 /// determine if the current platform is 32 or 64 bit
