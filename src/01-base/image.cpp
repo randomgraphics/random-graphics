@@ -2,6 +2,10 @@
 //#include "dds.h"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ASSERT RG_ASSERT
+//#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+//#endif
 // #define STBI_MALLOC rg::HeapMemory::alloc
 // #define STBI_REALLOC rg::HeapMemory::realloc
 // #define STBI_FREE rg::HeapMemory::dealloc

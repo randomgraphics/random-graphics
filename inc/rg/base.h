@@ -626,7 +626,7 @@ union ColorFormat {
     //@{
     struct {
 #if RG_LITTLE_ENDIAN
-        unsigned int layout   : 6;
+        uint32_t layout   : 6;
         unsigned int sign012  : 4; ///< sign for R/G/B channels
         unsigned int sign3    : 4; ///< sign for alpha channel
         unsigned int swizzle0 : 3;
@@ -653,13 +653,13 @@ union ColorFormat {
     ///
     static constexpr ColorFormat make(Layout l, Sign si012, Sign si3, Swizzle sw0, Swizzle sw1, Swizzle sw2, Swizzle sw3) {
         return {{
-            (unsigned int)l,
-            (unsigned int)si012,
-            (unsigned int)si3,
-            (unsigned int)sw0,
-            (unsigned int)sw1,
-            (unsigned int)sw2,
-            (unsigned int)sw3,
+            (unsigned int)l & 0x3f,
+            (unsigned int)si012 & 0xf,
+            (unsigned int)si3 & 0xf,
+            (unsigned int)sw0 & 0x7,
+            (unsigned int)sw1 & 0x7,
+            (unsigned int)sw2 & 0x7,
+            (unsigned int)sw3 & 0x7,
             0,
         }};
     }

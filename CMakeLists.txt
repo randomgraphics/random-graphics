@@ -31,8 +31,13 @@ endif()
 # them repeatedly for all internal targets (by making them PRIVATE)
 if (MSVC)
     add_compile_options(/W4 /WX)
-elseif (GCC)
-    add_compile_options(-Wall -Wextra -Werror)
+else()
+    add_compile_options(
+        -Wall -Wextra -Werror
+        -Wundef      # can't use #if on undefined macro
+        -Wconversion # can't implicit conver to narrower type.
+        -Wno-missing-field-initializers # we do this a lot when initializing VK structure.
+ )
 endif()
 
 add_subdirectory(src)

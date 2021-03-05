@@ -180,7 +180,7 @@ struct SimpleVulkanSwapChain {
         }
 
         void moveToNext() {
-            current = (current + 1) % count;
+            current = (current + 1) % (uint32_t)count;
         }
 
         operator VkSemaphore () const { return semaphores[current]; }

@@ -802,7 +802,7 @@ std::string rg::opengl::GpuTimestamps::print(const char * ident) const {
             }
             //auto fromStart = current > startTime ? (current - startTime) : 0;
             auto delta = getDuration(prevTime, current);
-            ss << ident << std::setw(maxlen) << std::left << _marks[i].name << std::setw(0) << " : "  << delta << std::endl;
+            ss << ident << std::setw((int)maxlen) << std::left << _marks[i].name << std::setw(0) << " : "  << delta << std::endl;
             prevTime = current;
         }
         ss << ident << "total = " << getDuration(_marks.front().result, _marks.back().result) << std::endl;
