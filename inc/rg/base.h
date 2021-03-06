@@ -122,7 +122,8 @@
 #if RG_BUILD_DEBUG
 #define RG_ASSERT(x, ...)                   \
     if (!(x)) {                             \
-        RG_THROW("ASSERT failure: %s", #x); \
+        RG_LOGE("ASSERT failure: %s", #x);  \
+        ::rg::breakIntoDebugger();          \
     } else                                  \
         void(0)
 #else
@@ -320,6 +321,9 @@ public:
 
 /// Force termination of the current process.
 [[noreturn]] void rip();
+
+/// Send trap signal to debugger
+void breakIntoDebugger();
 
 /// Instead of embed it in a macro. make this a utility function to make it easier to set debug break point on it.
 [[noreturn]] void throwRuntimeErrorException(const char * file, int line, const char * message);

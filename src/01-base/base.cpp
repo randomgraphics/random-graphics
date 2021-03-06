@@ -2,15 +2,29 @@
 #include "internal-helpers.h"
 #include <iomanip>
 #include <stdarg.h>
-#include <signal.h>
 #include <sstream>
+#if RG_MSWIN
+#include <windows.h>
+#else
+#include <signal.h>
+#endif
 
 // -----------------------------------------------------------------------------
 //
 [[noreturn]] void rg::rip() {
     RG_LOG(, F, backtrace().c_str());
+    breakIntoDebugger();
+    exit(-1);
+}
+
+// -----------------------------------------------------------------------------
+//
+void rg::breakIntoDebugger() {
+#if RG_MSWIN
+    ::DebugBreak();
+#else
     raise(SIGTRAP);
-    throw "rip";
+#endif
 }
 
 // -----------------------------------------------------------------------------
