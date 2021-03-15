@@ -347,11 +347,11 @@ std::string ns2str(uint64_t ns);
 /// call exit function automatically at scope exit
 template<typename PROC>
 class ScopeExit {
-    PROC & _proc;
+    PROC _proc;
     bool _active = true;
 public:
 
-    ScopeExit(PROC && proc) : _proc(proc) {}
+    ScopeExit(PROC proc) : _proc(proc) {}
 
     ~ScopeExit() { exit(); }
 
