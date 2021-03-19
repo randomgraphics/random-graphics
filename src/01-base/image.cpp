@@ -241,8 +241,7 @@ rg::RawImage rg::RawImage::load(std::istream & fp) {
     io.read = [](void* user, char* data, int size) -> int {
         auto fp = (std::istream *)user;
         fp->read(data, size);
-        if (!fp->good()) return 0;
-        return size;
+        return fp->gcount();
     };
     io.skip = [](void* user, int n) {
         auto fp = (std::istream*)user;

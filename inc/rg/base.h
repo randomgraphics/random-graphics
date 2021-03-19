@@ -7,6 +7,8 @@
 #include <map>
 #include <mutex>
 #include <memory>
+#include <cstring>
+#include <errno.h>
 
 /// Set RG_BUILD_DEBUG to 0 to disable debug features.
 #ifndef RG_BUILD_DEBUG
@@ -327,6 +329,17 @@ void breakIntoDebugger();
 
 /// Instead of embed it in a macro. make this a utility function to make it easier to set debug break point on it.
 [[noreturn]] void throwRuntimeErrorException(const char * file, int line, const char * message);
+
+/// Interprets the value of errnum, generating a string with a message that describes the error condition.
+inline const char * errno2str(int error) {
+#ifdef _MSC_VER
+    static thread_local char message[256];
+    strerror_s(message, error);
+    return message;
+#else
+    return strerror(error);
+#endif
+}
 
 /// dump current callstck to string
 std::string backtrace();
@@ -1124,9 +1137,12 @@ public:
     /// \name load & save
     //@{
     static RawImage load(std::istream &);
-    static RawImage load(const char * filename) {
+    static RawImage load(const std::string & filename) {
         std::ifstream f(filename, std::ios::binary);
-        if (!f.good()) return {};
+        if (!f.good()) {
+            RG_LOGE("Failed to open image file %s : %s", filename, errno2str(errno));
+            return {};
+        }
         return load(f);
     }
     // TODO: save to std::ostream

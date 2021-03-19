@@ -1,4 +1,5 @@
 #include "rg/base.h"
+#include <filesystem>
 
 #define CATCH_CONFIG_MAIN // Let Catch provide main():
 #include "catch.hpp"
@@ -6,17 +7,18 @@
 using namespace rg;
 using namespace std::string_literals;
 
-struct LogData {
-    std::string tag;
-    std::string log;
-    static void func(void * context, const LogDesc & desc, const char * text) {
-        auto d = (LogData*)context;
-        d->tag = desc.tag;
-        d->log = text;
-    }
-};
-
+// ---------------------------------------------------------------------------------------------------------------------
+//
 TEST_CASE("log", "[base]") {
+    struct LogData {
+        std::string tag;
+        std::string log;
+        static void func(void * context, const LogDesc & desc, const char * text) {
+            auto d = (LogData*)context;
+            d->tag = desc.tag;
+            d->log = text;
+        }
+    };
     LogData data;
     setLogCallback({LogData::func, &data});
     auto end = ScopeExit([]{ setLogCallback({}); }); // restore default log callback at the end.
@@ -47,16 +49,28 @@ TEST_CASE("log", "[base]") {
     CHECK(data.log == "false");
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+//
 TEST_CASE("formatstr", "[base]") {
     CHECK("abcd 10"s == rg::formatstr("abcd %d", 10));
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// quick test of image loading from file.
+TEST_CASE("image", "[base]") {
+    auto path = std::filesystem::path(TEST_FOLDER) / "alien-planet.jpg";
+    RG_LOGI("load image from file: %s", path.string().c_str());
+    RawImage ri = RawImage::load(path.string());
+    REQUIRE(!ri.empty());
+    CHECK(ri.width() == 600);
+    CHECK(ri.height() == 486);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+//
 #if HAS_OPENGL
-
 #include "rg/opengl.h"
-
 using namespace rg::opengl;
-
 TEST_CASE("context", "[opengl]") {
 
     SECTION("default pbuffer context") {
@@ -64,5 +78,4 @@ TEST_CASE("context", "[opengl]") {
         CHECK(rc.good());
     }
 }
-
 #endif
