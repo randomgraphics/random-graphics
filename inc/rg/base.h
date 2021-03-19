@@ -1140,7 +1140,7 @@ public:
     static RawImage load(const std::string & filename) {
         std::ifstream f(filename, std::ios::binary);
         if (!f.good()) {
-            RG_LOGE("Failed to open image file %s : %s", filename, errno2str(errno));
+            RG_LOGE("Failed to open image file %s : %s", filename.c_str(), errno2str(errno));
             return {};
         }
         return load(f);
