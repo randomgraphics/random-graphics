@@ -46,6 +46,7 @@ RUN mv /opt/cmdline-tools /opt/android/sdk/cmdline-tools/latest
 ARG JAVA_HOME=/opt/android/studio/jre
 RUN yes|/opt/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
 RUN /opt/android/sdk/cmdline-tools/latest/bin/sdkmanager --install "ndk;22.0.7026061"
+RUN /opt/android/sdk/cmdline-tools/latest/bin/sdkmanager --install "ndk;22.1.7171670"
 RUN /opt/android/sdk/cmdline-tools/latest/bin/sdkmanager --install "build-tools;30.0.3"
 RUN /opt/android/sdk/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-30"
 RUN /opt/android/sdk/cmdline-tools/latest/bin/sdkmanager --install "cmake;3.10.2.4988404"
