@@ -31,7 +31,11 @@ static inline std::string sev2str(int sev) {
 // ---------------------------------------------------------------------------------------------------------------------
 //
 static void writeToSystemLog(const char * tag, int severity, const std::string & messageWithNewLine) {
-#if RG_ANDROID
+#if RG_MSWIN
+    (void)tag;
+    (void)severity;
+    OutputDebugStringA(messageWithNewLine.c_str());
+#elif RG_ANDROID
     int priority;
     if (severity <= rg::log::macros::F) {
         priority = ANDROID_LOG_FATAL;

@@ -2,10 +2,10 @@
 //#include "dds.h"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ASSERT RG_ASSERT
-//#ifdef __GNUC__
+#ifdef __GNUC__
 #pragma GCC diagnostic ignored "-Wconversion"
 #pragma GCC diagnostic ignored "-Wsign-compare"
-//#endif
+#endif
 // #define STBI_MALLOC rg::HeapMemory::alloc
 // #define STBI_REALLOC rg::HeapMemory::realloc
 // #define STBI_FREE rg::HeapMemory::dealloc
@@ -18,9 +18,8 @@ using namespace rg;
 // ImagePlaneDesc
 // *****************************************************************************
 
-//
-//
 // -----------------------------------------------------------------------------
+//
 bool rg::ImagePlaneDesc::valid() const {
     // check format
     if (!format.valid()) {
@@ -77,9 +76,8 @@ bool rg::ImagePlaneDesc::valid() const {
     return true;
 }
 
-//
-//
 // -----------------------------------------------------------------------------
+//
 rg::ImagePlaneDesc rg::ImagePlaneDesc::make(ColorFormat format, size_t width, size_t height, size_t depth, size_t step, size_t pitch, size_t slice, size_t alignment) {
 
     if (!format.valid()) {
@@ -121,9 +119,8 @@ rg::ImagePlaneDesc rg::ImagePlaneDesc::make(ColorFormat format, size_t width, si
 // ImageDesc
 // *****************************************************************************
 
-//
-//
 // -----------------------------------------------------------------------------
+//
 bool rg::ImageDesc::valid() const {
 
     if (planes.size() == 0) {
@@ -156,9 +153,8 @@ bool rg::ImageDesc::valid() const {
     return true;
 }
 
-//
-//
 // -----------------------------------------------------------------------------
+//
 void rg::ImageDesc::reset(const ImagePlaneDesc & basemap, uint32_t layers_, uint32_t levels_) {
 
     if (!basemap.valid()) {
@@ -206,9 +202,8 @@ void rg::ImageDesc::reset(const ImagePlaneDesc & basemap, uint32_t layers_, uint
 // RawImage
 // *****************************************************************************
 
-//
-//
 // -----------------------------------------------------------------------------
+//
 rg::RawImage::RawImage(ImageDesc&& desc, const void * initialContent, size_t initialContentSizeInbytes)
     : mDesc(std::move(desc)) {
 
@@ -230,18 +225,15 @@ rg::RawImage::RawImage(ImageDesc&& desc, const void * initialContent, size_t ini
     }
 }
 
-#pragma GCC diagnostic error "-Wunused-variable"
-
-//
-//
 // -----------------------------------------------------------------------------
+//
 rg::RawImage rg::RawImage::load(std::istream & fp) {
     // setup stbi io callback
     stbi_io_callbacks io = {};
     io.read = [](void* user, char* data, int size) -> int {
         auto fp = (std::istream *)user;
         fp->read(data, size);
-        return fp->gcount();
+        return (int)fp->gcount();
     };
     io.skip = [](void* user, int n) {
         auto fp = (std::istream*)user;
@@ -263,6 +255,8 @@ rg::RawImage rg::RawImage::load(std::istream & fp) {
         return image;
     }
 
+    // TODO: KTX, DDS support
+
     // // try read as DDS
     // fp.seek(begin, GN::FileSeek::SET);
     // DDSReader dds(fp);
@@ -275,4 +269,101 @@ rg::RawImage rg::RawImage::load(std::istream & fp) {
 
     RG_LOGE("Failed to load image from stream: unrecognized image format.");
     return {};
+}
+
+// -----------------------------------------------------------------------------
+//
+rg::RawImage rg::RawImage::load(const ConstRange<uint8_t> & data) {
+    auto str = std::string((const char*)data.data(), data.size());
+    auto iss = std::istringstream(str);
+    return load(iss);
+}
+
+// -----------------------------------------------------------------------------
+//
+rg::RawImage rg::RawImage::loadCube(
+    const ConstRange<uint8_t>& nx,
+    const ConstRange<uint8_t>& px,
+    const ConstRange<uint8_t>& nz,
+    const ConstRange<uint8_t>& pz,
+    const ConstRange<uint8_t>& py,
+    const ConstRange<uint8_t>& ny) {
+    int x, xtemp, y, ytemp, n, ntemp;
+
+    auto nxd = stbi_load_from_memory(nx.data(), static_cast<int>(nx.size()), &x, &y, &n, 4);
+    if (!nxd) {
+        RG_LOGE("Failed to load negative X face from memory: unrecognized image format.");
+        return {};
+    }
+    auto pxd = stbi_load_from_memory(px.data(), static_cast<int>(px.size()), &xtemp, &ytemp, &ntemp, 4);
+    if (!pxd) {
+        RG_LOGE("Failed to load positive X face from memory: unrecognized image format.");
+        return {};
+    }
+    if (x != xtemp || y != ytemp || n != ntemp) {
+        RG_LOGE("Cubemap face dimensions do not match.");
+        return {};
+    }
+    auto nzd = stbi_load_from_memory(nz.data(), static_cast<int>(nz.size()), &xtemp, &ytemp, &ntemp, 4);
+    if (!nzd) {
+        RG_LOGE("Failed to load negative Z face from memory: unrecognized image format.");
+        return {};
+    }
+    if (x != xtemp || y != ytemp || n != ntemp) {
+        RG_LOGE("Cubemap face dimensions do not match.");
+        return {};
+    }
+    auto pzd = stbi_load_from_memory(pz.data(), static_cast<int>(pz.size()), &xtemp, &ytemp, &ntemp, 4);
+    if (!pzd) {
+        RG_LOGE("Failed to load positive Z face from memory: unrecognized image format.");
+        return {};
+    }
+    if (x != xtemp || y != ytemp || n != ntemp) {
+        RG_LOGE("Cubemap face dimensions do not match.");
+        return {};
+    }
+    auto pyd = stbi_load_from_memory(py.data(), static_cast<int>(py.size()), &xtemp, &ytemp, &ntemp, 4);
+    if (!pyd) {
+        RG_LOGE("Failed to load positive Y face from memory: unrecognized image format.");
+        return {};
+    }
+    if (x != xtemp || y != ytemp || n != ntemp) {
+        RG_LOGE("Cubemap face dimensions do not match.");
+        return {};
+    }
+    auto nyd = stbi_load_from_memory(ny.data(), static_cast<int>(ny.size()), &xtemp, &ytemp, &ntemp, 4);
+    if (!nyd) {
+        RG_LOGE("Failed to load negative Y face from memory: unrecognized image format.");
+        return {};
+    }
+    if (x != xtemp || y != ytemp || n != ntemp) {
+        RG_LOGE("Cubemap face dimensions do not match.");
+        return {};
+    }
+
+    auto image = RawImage(ImageDesc(ImagePlaneDesc::make(ColorFormat::RGBA_8_8_8_8_UNORM(), (uint32_t)x, (uint32_t)y), 6, 1));
+    ImageDesc desc = image.desc();
+    if (desc.pitch(0) != static_cast<uint32_t>(4 * x)) {
+        RG_LOGE("Unsupported byte format.");
+        return{};
+    }
+    if (desc.plane(0).size < static_cast<uint32_t>(4 * x * y)) {
+        RG_LOGE("Unsupported byte format.");
+        return {};
+    }
+    memcpy(image.pixel(0, 0), nxd, 4 * x * y);
+    memcpy(image.pixel(1, 0), pxd, 4 * x * y);
+    memcpy(image.pixel(2, 0), nzd, 4 * x * y);
+    memcpy(image.pixel(3, 0), pzd, 4 * x * y);
+    memcpy(image.pixel(4, 0), pyd, 4 * x * y);
+    memcpy(image.pixel(5, 0), nyd, 4 * x * y);
+    RG_ASSERT(image.desc().valid());
+    stbi_image_free(nxd);
+    stbi_image_free(pxd);
+    stbi_image_free(nzd);
+    stbi_image_free(pzd);
+    stbi_image_free(pyd);
+    stbi_image_free(nyd);
+
+    return image;
 }

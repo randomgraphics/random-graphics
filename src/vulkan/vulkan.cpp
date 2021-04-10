@@ -2,7 +2,7 @@
 #include "rg/vulkan.h"
 #include <sstream>
 
-#if RG_ANDROID
+#if VK_HEADER_VERSION < 135
 constexpr VkResult VK_ERROR_UNKNOWN = (VkResult)-13;
 constexpr VkResult VK_THREAD_IDLE_KHR = (VkResult)1000268000;
 constexpr VkResult VK_THREAD_DONE_KHR = (VkResult)1000268001;

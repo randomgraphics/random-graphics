@@ -7,6 +7,7 @@
 #include <map>
 #include <mutex>
 #include <memory>
+#include <algorithm>
 #include <cstring>
 #include <errno.h>
 
@@ -93,33 +94,25 @@
 #define RG_DLOGB(...) RG_DLOG(, B, __VA_ARGS__)
 //@}
 
-/// Call this only when encountering unrecoverable error that you truely want to quit the app immediately.
-/// In most cases, just call RG_THROW to give caller a chance to handle the exception.
-#define RG_RIP(...)                         \
-    do {                                    \
-        RG_LOG(, F, "[RIP] " __VA_ARGS__);  \
-        rg::rip();                          \
-    } while (0)
-
 /// throw std::runtime_error exception with source location information
 #define RG_THROW(message, ...) do { \
         const char * theExceptionMessage_ = ::rg::formatstr(message, ##__VA_ARGS__); \
-        RG_LOGE("%s", theExceptionMessage_); \
         ::rg::throwRuntimeErrorException(__FILE__, __LINE__, theExceptionMessage_); \
     } while(0)
 
 /// Check for required condition, call the failure clause if the condition is not met.
 #define RG_CHK(x, action_on_false)                      \
     if (!(x)) {                                         \
-        RG_LOG(, F, "Condition ("#x") didn't met.");    \
+        RG_LOG(, E, "Condition ("#x") didn't met.");    \
         action_on_false;                                \
     } else                                              \
         void(0)
 
-/// Check for required conditions. call RIP when the condition is not met.
+/// Check for required conditions. Throw runtime error exception when the condition is not met.
 #define RG_REQUIRE(x)  RG_CHK(x, RG_THROW(#x))
 
-/// Runtime assertion
+/// Runtime assertion for debug build. The assertion failure triggers debug-break signal in debug build.
+/// It is no-op in profile and release build, thus can be used in performance critical code path.
 //@{
 #if RG_BUILD_DEBUG
 #define RG_ASSERT(x, ...)                   \
@@ -214,7 +207,7 @@ class Controller {
     bool         _enabled = true;
 
     Controller(const char * tag) : _tag(tag) {}
-    
+
     ~Controller() = default;
 
 public:
@@ -321,9 +314,6 @@ public:
 
 } // namespace log
 
-/// Force termination of the current process.
-[[noreturn]] void rip();
-
 /// Send trap signal to debugger
 void breakIntoDebugger();
 
@@ -342,7 +332,7 @@ inline const char * errno2str(int error) {
 }
 
 /// dump current callstck to string
-std::string backtrace();
+std::string backtrace(int indent = 0);
 
 /// allocated aligned memory. The returned pointer must be freed by
 void * aalloc(size_t alignment, size_t bytes);
@@ -475,6 +465,289 @@ inline constexpr T nextMultiple(const T & value, const T & alignment) {
 }
 
 //@}
+
+/// This is a little helper class to do static_assert in constexpr if statement within a template.
+///
+/// Example:
+///
+///     template<typename T>
+///     void foo() {
+///         if constexpr (contdition1<T>) { ... }
+///         else if constexpr (condition2<T>) { ... }
+///         else {
+///             // generate build error if neither condition1 nor condition2 are met.
+///             static_assert(AlwaysFalse<T>);
+///         }
+///     }
+///
+template <class...> static constexpr std::false_type AlwaysFalse {};
+
+/// Array on stack that supports to common array operations like push, pop, insert, remove and etc.
+/// No dynamic allocation during the life time the array.
+template<class T, size_t N, typename SIZE_TYPE = size_t>
+class StackArray {
+    uint8_t   _buffer[sizeof(T)*N];
+    SIZE_TYPE _count = 0;
+
+    /// default constructor
+    static inline void ctor( T * ptr, SIZE_TYPE count ) {
+        for( SIZE_TYPE i = 0; i < count; ++i, ++ptr ) {
+            new (ptr) T;
+        }
+    }
+
+    /// copy constructor
+    static inline void cctor( T * ptr, const T & src ) {
+        new (ptr) T(src);
+    }
+
+    /// destructor
+    static inline void dtor( T * ptr ) {
+        ptr->T::~T();
+    }
+
+    void doClear() {
+        T * p = data();
+        for( SIZE_TYPE i = 0; i < _count; ++i, ++p ) {
+            dtor( p );
+        }
+        _count = 0;
+    }
+
+    void copyFrom( const StackArray & other ) {
+        T       * dst = data();
+        const T * src = other.data();
+
+        SIZE_TYPE mincount = std::min<SIZE_TYPE>( _count, other._count );
+        for( SIZE_TYPE i = 0; i < mincount; ++i ) {
+            dst[i] = src[i];
+        }
+
+        // destruct extra objects, only when other._count < _count
+        for( SIZE_TYPE i = other._count; i < _count; ++i ) {
+            dtor( dst + i );
+        }
+
+        // copy-construct new objects, only when _count < other._count
+        for( SIZE_TYPE i = _count; i < other._count; ++i ) {
+            cctor( dst + i, src[i] );
+        }
+
+        _count = other._count;
+    }
+
+    void doInsert( SIZE_TYPE position, const T & t ) {
+        RG_REQUIRE( _count < N );
+        RG_REQUIRE( position <= _count);
+
+        T * p = data();
+
+        for( SIZE_TYPE i = _count; i > position; --i ) {
+            // TODO: use move operator when available
+            p[i] = p[i-1];
+        }
+
+        // insert new elements
+        p[position] = t;
+
+        ++_count;
+    }
+
+    void doErase( SIZE_TYPE position ) {
+        if( position >= _count ) {
+            RG_LOGE( "Invalid eraseIdx position" );
+            return;
+        }
+
+        --_count;
+
+        T * p = data();
+
+        // move elements
+        for( SIZE_TYPE i = position; i < _count; ++i ) {
+            // TODO: use move operator when available
+            p[i] = p[i+1];
+        }
+
+        // destruct last element
+        dtor( p + _count );
+    }
+
+    void doResize( SIZE_TYPE count ) {
+        if( count == _count ) return; // shortcut for redundant call.
+
+        RG_REQUIRE( count <= N );
+
+        T * p = data();
+
+        // destruct extra objects, only when count < _count
+        for( SIZE_TYPE i = count; i < _count; ++i ) {
+            dtor( p + i );
+        }
+
+        // construct new objects, only when _count < count
+        for( SIZE_TYPE i = _count; i < count; ++i ) {
+            ctor( p + i, 1 );
+        }
+
+        _count = count;
+    }
+
+    bool equal( const StackArray & other ) const {
+        if( _count != other._count ) return false;
+
+        const T * p1 = data();
+        const T * p2 = other.data();
+
+        for( SIZE_TYPE i = 0; i < _count; ++i ) {
+            if( p1[i] != p2[i] ) return false;
+        }
+        return true;
+    }
+
+public:
+
+    typedef T ElementType; ///< element type
+
+    static const SIZE_TYPE MAX_SIZE = (SIZE_TYPE)N; ///< maximum size
+
+    ///
+    /// default constructor
+    ///
+    StackArray() = default;
+
+    ///
+    /// constructor with user-defined count.
+    ///
+    explicit StackArray( SIZE_TYPE count ) {
+        ctor( data(), count );
+    }
+
+    ///
+    /// copy constructor
+    ///
+    StackArray( const StackArray & other ) {
+        copyFrom( other );
+    }
+
+    ///
+    /// dtor
+    ///
+    ~StackArray() { doClear(); }
+
+    /// \name Common array operations.
+    ///
+    //@{
+    void      append( const T & t ) { doInsert( _count, t ); }
+    const T & back() const { RG_ASSERT( _count > 0 ); return data()[_count-1]; }
+    T       & back() { RG_ASSERT( _count > 0 ); return data()[_count-1]; }
+    const T * begin() const { return data(); }
+    T       * begin() { return data(); }
+    void      clear() { doClear(); }
+    const T * data() const { return (const T*)_buffer; }
+    T       * data() { return (T*)_buffer; }
+    bool      empty() const { return 0 == _count; }
+    const T * end() const { return data() + _count; }
+    T       * end() { return data() + _count; }
+    void      eraseIdx( SIZE_TYPE position ) { doErase( position ); }
+    void      erasePtr( const T * ptr ) { doErase( ptr - _buffer ); }
+    const T & front() const { RG_ASSERT( _count > 0 ); return data()[0]; }
+    T       & front() { RG_ASSERT( _count > 0 ); return data()[0]; }
+    void      insert( SIZE_TYPE position, const T & t ) { doInsert( position, t ); }
+    void      resize( SIZE_TYPE count ) { doResize( count ); }
+    void      popBack() { doErase( _count - 1 ); }
+    SIZE_TYPE size() const { return _count; }
+    //@}
+
+    /// \name common operators
+    ///
+    //@{
+    StackArray & operator=( const StackArray & other ) { copyFrom(other); return *this; }
+    bool         operator==( const StackArray & other ) const { return equal(other); }
+    bool         operator!=( const StackArray & other ) const { return !equal(other); }
+    T          & operator[]( SIZE_TYPE i ) { RG_ASSERT( i < _count ); return data()[i]; }
+    const T    & operator[]( SIZE_TYPE i ) const { RG_ASSERT( i < _count ); return data()[i]; }
+    //@}
+};
+
+/// Represents a non-resizealbe list of elements. The range is fixed. But the content/elemnts could be mutable.
+template<typename T, typename SIZE_T = size_t>
+class MutableRange {
+
+    T *     _ptr; ///< pointer to the first element in the list.
+    SIZE_T  _size; ///< number of elements in the list.
+
+public:
+
+    MutableRange() : _ptr(nullptr), _size(0) {}
+
+    MutableRange(T * ptr, SIZE_T size) : _ptr(ptr), _size(size) {}
+
+    MutableRange(std::vector<T> & v) : _ptr(v.data()), _size(v.size()) {}
+
+    template<SIZE_T N>
+    MutableRange(StackArray<T, N> & v) : _ptr(v.data()), _size(v.size()) {}
+
+    template<SIZE_T N>
+    MutableRange(std::array<T, N> & v) : _ptr(v.data()), _size(v.size()) {}
+
+    RG_DEFAULT_COPY(MutableRange);
+
+    RG_DEFAULT_MOVE(MutableRange);
+
+    void clear() { _ptr = nullptr; _size = 0; }
+    bool empty() const { return 0 ==_ptr || 0 == _size; }
+    SIZE_T size() const { return _size; }
+    T * begin() const { return _ptr; }
+    T * end() const { return _ptr + _size; }
+    T * data() const { return _ptr; }
+    T & at(SIZE_T i) const { RG_ASSERT(i < _size); return _ptr[i]; }
+    T & operator[](SIZE_T i) const { return at(i); }
+};
+
+
+/// Represents a constant non-resizealbe list of elements.
+template<typename T, typename SIZE_T = size_t>
+class ConstRange {
+
+    const T *  _ptr; ///< pointer to the first element in the list.
+    SIZE_T    _size; ///< number of elements in the list.
+
+public:
+
+    constexpr ConstRange() : _ptr(nullptr), _size(0) {}
+
+    constexpr ConstRange(const MutableRange<T, SIZE_T> & mr) : _ptr(mr.begin()), _size(mr.size()) {}
+
+    constexpr ConstRange(const T * ptr, SIZE_T size) : _ptr(ptr), _size(size) {}
+
+    template<SIZE_T N>
+    constexpr ConstRange(const StackArray<T, N> & v) : _ptr(v.data()), _size(v.size()) {}
+
+    constexpr ConstRange(const std::vector<T> & v) : _ptr(v.data()), _size((SIZE_T)v.size()) {}
+
+    template<SIZE_T N>
+    constexpr ConstRange(const std::array<T, N> & v) : _ptr(v.data()), _size(v.size()) {}
+
+    RG_DEFAULT_COPY(ConstRange);
+
+    RG_DEFAULT_MOVE(ConstRange);
+
+    void clear() { _ptr = nullptr; _size = 0; }
+
+    constexpr bool empty() const { return 0 == _ptr || 0 == _size; }
+
+    constexpr SIZE_T size() const { return _size; }
+
+    constexpr const T * begin() const { return _ptr; }
+    constexpr const T * end() const { return _ptr + _size; }
+    constexpr const T * data() const { return _ptr; }
+    constexpr const T & at(SIZE_T i) const { RG_ASSERT(i < _size); return _ptr[i]; }
+    constexpr const T & operator[](SIZE_T i) const { return at(i); }
+
+    /// conver to std::initialize_list
+    constexpr std::initializer_list<T> il() const { return std::initializer_list<T>(_ptr, _ptr + _size); }
+};
 
 ///
 /// color format structure
@@ -643,7 +916,7 @@ union ColorFormat {
     //@{
     struct {
 #if RG_LITTLE_ENDIAN
-        uint32_t layout   : 6;
+        unsigned int layout   : 6;
         unsigned int sign012  : 4; ///< sign for R/G/B channels
         unsigned int sign3    : 4; ///< sign for alpha channel
         unsigned int swizzle0 : 3;
@@ -935,16 +1208,16 @@ inline constexpr uint32_t makeBGRA8(T r, T g, T b, T a) {
 /// This represents a single 1D/2D/3D image in an more complex image structure.
 // Note: avoid using size_t in this structure. So the size of the structure will never change, regardless of compile platform.
 struct ImagePlaneDesc {
-    
+
     /// pixel format
     ColorFormat format = ColorFormat::UNKNOWN();
 
     /// Plane width in pixels
     uint32_t width = 0;
-    
+
     /// Plane height in pixels
     uint32_t height = 0;
-    
+
     /// Plane depth in pixels
     uint32_t depth = 0;
 
@@ -979,6 +1252,34 @@ struct ImagePlaneDesc {
 
     /// check if this is an empty descriptor. Note that empty descriptor is never valid.
     bool empty() const { return ColorFormat::UNKNOWN() == format; }
+
+    bool operator == (const ImagePlaneDesc & rhs) const {
+        return format == rhs.format
+            && width == rhs.width
+            && height == rhs.height
+            && depth == rhs.depth
+            && step == rhs.step
+            && pitch == rhs.pitch
+            && slice == rhs.slice
+            && size == rhs.size
+            && offset == rhs.offset
+            && rowAlignment == rhs.rowAlignment;
+    }
+
+    bool operator != (const ImagePlaneDesc & rhs) const { return !operator==(rhs); }
+
+    bool operator < (const ImagePlaneDesc & rhs) const {
+        if (format != rhs.format) return format < rhs.format;
+        if (width != rhs.width) return width < rhs.width;
+        if (height != rhs.height) return height < rhs.height;
+        if (depth != rhs.depth) return depth < rhs.depth;
+        if (step != rhs.step) return step < rhs.step;
+        if (pitch != rhs.pitch) return pitch < rhs.pitch;
+        if (slice != rhs.slice) return slice < rhs.slice;
+        if (size != rhs.size) return size < rhs.size;
+        if (offset != rhs.offset) return offset < rhs.offset;
+        return rowAlignment < rhs.rowAlignment;
+    }
 
     /// Create a new image plane descriptor
     static ImagePlaneDesc make(ColorFormat format, size_t width, size_t height = 1, size_t depth = 1, size_t step = 0, size_t pitch = 0, size_t slice = 0, size_t alignment = 4);
@@ -1016,7 +1317,7 @@ struct ImageDesc {
     /// \param basemap the base image
     /// \param layers number of layers. must be positive integer
     /// \param levels number of mipmap levels. set to 0 to automatically build full mipmap chain.
-    /// 
+    ///
     ImageDesc(const ImagePlaneDesc & basemap, size_t layers = 1, size_t levels = 1) { reset(basemap, (uint32_t)layers, (uint32_t)levels); }
 
     // can copy. can move.
@@ -1065,6 +1366,28 @@ struct ImageDesc {
     }
 
     // void vertFlipInpace(void * pixels, size_t sizeInBytes);
+
+    bool operator == (const ImageDesc & rhs) const {
+        return planes == rhs.planes
+            && layers == rhs.layers
+            && levels == rhs.levels
+            && size == rhs.size;
+    }
+
+    bool operator != (const ImageDesc & rhs) const { return !operator==(rhs); }
+
+    bool operator < (const ImageDesc & rhs) const {
+        if (layers != rhs.layers) return layers < rhs.layers;
+        if (levels != rhs.levels) return levels < rhs.levels;
+        if (size != rhs.size) return size < rhs.size;
+        if (planes.size() != rhs.planes.size()) return planes.size() < rhs.planes.size();
+        for(size_t i = 0; i < planes.size(); ++i) {
+            const auto & a = planes[i];
+            const auto & b = rhs.planes[i];
+            if (a != b) return a < b;
+        }
+        return false;
+    }
 
 private:
 
@@ -1134,9 +1457,16 @@ public:
     uint8_t*       pixel(size_t layer, size_t level, size_t x = 0, size_t y = 0, size_t z = 0)       { return mPixels.get() + mDesc.pixel(layer, level, x, y, z); }
     //@}
 
-    /// \name load & save
+    /// \name Image loading utilities
     //@{
+
+    /// Helper method to load from a binary stream.
     static RawImage load(std::istream &);
+
+    /// Helper method to load from a binary byte arry in memory.
+    static RawImage load(const ConstRange<uint8_t> &);
+
+    /// Helper method to load from a file.
     static RawImage load(const std::string & filename) {
         std::ifstream f(filename, std::ios::binary);
         if (!f.good()) {
@@ -1145,7 +1475,23 @@ public:
         }
         return load(f);
     }
-    // TODO: save to std::ostream
+
+    /// Helper method to load cube map from indiviual face images.
+    ///
+    static RawImage loadCube(
+        const ConstRange<uint8_t> & nx,  // negative X
+        const ConstRange<uint8_t> & px,  // positive X
+        const ConstRange<uint8_t> & nz,  // negative Z
+        const ConstRange<uint8_t> & pz,  // positive Z
+        const ConstRange<uint8_t> & py,  // positive Y
+        const ConstRange<uint8_t> & ny); // negative Y
+
+    /// Helper method to load cube map from indiviual face images.
+    ///
+    static RawImage loadCube(const ConstRange<uint8_t> * faces) {
+        return loadCube(faces[0], faces[1], faces[2], faces[3], faces[4], faces[5]);
+    }
+
     //@}
 
 private:
