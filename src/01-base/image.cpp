@@ -1,5 +1,5 @@
 #include "pch.h"
-//#include "dds.h"
+#include "dds.h"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ASSERT RG_ASSERT
 #ifdef __GNUC__
@@ -11,7 +11,7 @@
 // #define STBI_FREE rg::HeapMemory::dealloc
 #include "stb_image.h"
 #include <algorithm>
-   
+
 using namespace rg;
 
 // *****************************************************************************
@@ -56,18 +56,18 @@ bool rg::ImagePlaneDesc::valid() const {
 
     // check alignment
     static_assert(!isPowerOf2(0));
-    if (!isPowerOf2(rowAlignment)) {
+    if (!isPowerOf2(alignment)) {
         RG_LOGE("alignment is not power of 2.");
         return false;
     }
-    if (offset % rowAlignment) {
+    if (offset % alignment) {
         RG_LOGE("offset is not aligned.");
     }
-    if (pitch % rowAlignment) {
+    if ((pitch * cld.blockHeight) % alignment) {
         RG_LOGE("pitch is not aligned.");
         return false;
     }
-    if (slice % rowAlignment) {
+    if (slice % alignment) {
         RG_LOGE("slice is not aligned.");
         return false;
     }
@@ -101,14 +101,18 @@ rg::ImagePlaneDesc rg::ImagePlaneDesc::make(ColorFormat format, size_t width, si
     p.depth  = (uint32_t)(depth ? depth : 1);
     p.step   = std::max((uint32_t)step, (uint32_t)fd.pixelBits);
 
-    auto aw = nextMultiple<uint32_t>(p.width, fd.blockWidth);
-    auto ah = nextMultiple<uint32_t>(p.height, fd.blockHeight); 
+    // calculate alignment
+    RG_ASSERT(isPowerOf2(fd.blockBytes));
+    p.alignment = std::max((uint32_t)alignment, (uint32_t)fd.blockBytes);
+    uint32_t rowAlignment = p.alignment / fd.blockHeight;
 
-    p.pitch  = std::max(aw * p.step / 8u, (uint32_t)pitch);
-    p.pitch  = (p.pitch + (uint32_t)alignment - 1) & ~((uint32_t)alignment - 1); // make sure pitch meets alignment requirement.
+    // align image size to pixel block size
+    auto aw  = nextMultiple<uint32_t>(p.width, fd.blockWidth);
+    auto ah  = nextMultiple<uint32_t>(p.height, fd.blockHeight);
+
+    p.pitch  = nextMultiple(std::max(aw * p.step / 8u, (uint32_t)pitch), rowAlignment);
     p.slice  = std::max(p.pitch * ah, (uint32_t)slice);
     p.size   = p.slice * p.depth;
-    p.rowAlignment = (uint32_t)alignment;
 
     // done
     RG_ASSERT(p.valid());
@@ -173,10 +177,12 @@ void rg::ImageDesc::reset(const ImagePlaneDesc & basemap, uint32_t layers_, uint
     // build full mipmap chain
     ImagePlaneDesc mip = basemap;
     levels = 0;
+    uint32_t offset = 0;
     for(;;) {
         for(size_t i = 0; i < layers_; ++i) {
+            mip.offset = offset;
             planes.push_back(mip);
-            mip.offset += mip.size;
+            offset += mip.size;
         }
         ++levels;
 
@@ -188,11 +194,11 @@ void rg::ImageDesc::reset(const ImagePlaneDesc & basemap, uint32_t layers_, uint
         if (mip.width > 1) mip.width >>= 1;
         if (mip.height > 1) mip.height >>= 1;
         if (mip.depth > 1) mip.depth >>= 1;
-        mip = ImagePlaneDesc::make(mip.format, mip.width, mip.height, mip.depth, mip.step, 0, 0, mip.rowAlignment);
+        mip = ImagePlaneDesc::make(mip.format, mip.width, mip.height, mip.depth, mip.step, 0, 0, mip.alignment);
     }
 
     layers = layers_;
-    size = mip.offset;
+    size = offset;
 
     // done
     RG_ASSERT(valid());
@@ -205,11 +211,23 @@ void rg::ImageDesc::reset(const ImagePlaneDesc & basemap, uint32_t layers_, uint
 // -----------------------------------------------------------------------------
 //
 rg::RawImage::RawImage(ImageDesc&& desc, const void * initialContent, size_t initialContentSizeInbytes)
-    : mDesc(std::move(desc)) {
+: mDesc(std::move(desc)) {
+    construct(initialContent, initialContentSizeInbytes);
+}
 
+// -----------------------------------------------------------------------------
+//
+rg::RawImage::RawImage(const ImageDesc & desc, const void * initialContent, size_t initialContentSizeInbytes)
+: mDesc(desc) {
+    construct(initialContent, initialContentSizeInbytes);
+}
+
+// -----------------------------------------------------------------------------
+//
+void rg::RawImage::construct(const void * initialContent, size_t initialContentSizeInbytes) {
     // allocate pixel buffer
     size_t imageSize = size();
-    mPixels.reset((uint8_t*)aalloc(mDesc.plane(0, 0).rowAlignment, imageSize)); // TODO: LSM of all planes' alignment?
+    mPixels.reset((uint8_t*)aalloc(mDesc.plane(0, 0).alignment, imageSize)); // TODO: LSM of all planes' alignment?
     if (!mPixels) {
         return;
     }
@@ -228,6 +246,9 @@ rg::RawImage::RawImage(ImageDesc&& desc, const void * initialContent, size_t ini
 // -----------------------------------------------------------------------------
 //
 rg::RawImage rg::RawImage::load(std::istream & fp) {
+    // store current stream position
+    auto begin = fp.tellg();
+
     // setup stbi io callback
     stbi_io_callbacks io = {};
     io.read = [](void* user, char* data, int size) -> int {
@@ -244,9 +265,19 @@ rg::RawImage rg::RawImage::load(std::istream & fp) {
         return fp->eof();
     };
 
+    // try read as DDS first
+    DDSReader dds(fp);
+    if (dds.checkFormat()) {
+        auto image = RawImage(dds.readHeader());
+        if (image.empty()) return {};
+        if (!dds.readPixels(image.data(), image.size())) return {};
+        return image;
+    }
+
     // Load from common image file via stb_image library
     // TODO: hdr/grayscale support
     int x,y,n;
+    fp.seekg(begin, std::ios::beg);
     auto data = stbi_load_from_callbacks(&io, &fp, &x, &y, &n, 4);
     if (data) {
         auto image = RawImage(ImageDesc(ImagePlaneDesc::make(ColorFormat::RGBA_8_8_8_8_UNORM(), (uint32_t)x, (uint32_t)y)), data);
@@ -256,16 +287,6 @@ rg::RawImage rg::RawImage::load(std::istream & fp) {
     }
 
     // TODO: KTX, DDS support
-
-    // // try read as DDS
-    // fp.seek(begin, GN::FileSeek::SET);
-    // DDSReader dds(fp);
-    // if (dds.checkFormat()) {
-    //     auto image = RawImage(dds.readHeader());
-    //     if (image.empty()) return {};
-    //     if (!dds.readPixels(image.data(), image.size())) return {};
-    //     return image;
-    // }
 
     RG_LOGE("Failed to load image from stream: unrecognized image format.");
     return {};
@@ -277,93 +298,4 @@ rg::RawImage rg::RawImage::load(const ConstRange<uint8_t> & data) {
     auto str = std::string((const char*)data.data(), data.size());
     auto iss = std::istringstream(str);
     return load(iss);
-}
-
-// -----------------------------------------------------------------------------
-//
-rg::RawImage rg::RawImage::loadCube(
-    const ConstRange<uint8_t>& nx,
-    const ConstRange<uint8_t>& px,
-    const ConstRange<uint8_t>& nz,
-    const ConstRange<uint8_t>& pz,
-    const ConstRange<uint8_t>& py,
-    const ConstRange<uint8_t>& ny) {
-    int x, xtemp, y, ytemp, n, ntemp;
-
-    auto nxd = stbi_load_from_memory(nx.data(), static_cast<int>(nx.size()), &x, &y, &n, 4);
-    if (!nxd) {
-        RG_LOGE("Failed to load negative X face from memory: unrecognized image format.");
-        return {};
-    }
-    auto pxd = stbi_load_from_memory(px.data(), static_cast<int>(px.size()), &xtemp, &ytemp, &ntemp, 4);
-    if (!pxd) {
-        RG_LOGE("Failed to load positive X face from memory: unrecognized image format.");
-        return {};
-    }
-    if (x != xtemp || y != ytemp || n != ntemp) {
-        RG_LOGE("Cubemap face dimensions do not match.");
-        return {};
-    }
-    auto nzd = stbi_load_from_memory(nz.data(), static_cast<int>(nz.size()), &xtemp, &ytemp, &ntemp, 4);
-    if (!nzd) {
-        RG_LOGE("Failed to load negative Z face from memory: unrecognized image format.");
-        return {};
-    }
-    if (x != xtemp || y != ytemp || n != ntemp) {
-        RG_LOGE("Cubemap face dimensions do not match.");
-        return {};
-    }
-    auto pzd = stbi_load_from_memory(pz.data(), static_cast<int>(pz.size()), &xtemp, &ytemp, &ntemp, 4);
-    if (!pzd) {
-        RG_LOGE("Failed to load positive Z face from memory: unrecognized image format.");
-        return {};
-    }
-    if (x != xtemp || y != ytemp || n != ntemp) {
-        RG_LOGE("Cubemap face dimensions do not match.");
-        return {};
-    }
-    auto pyd = stbi_load_from_memory(py.data(), static_cast<int>(py.size()), &xtemp, &ytemp, &ntemp, 4);
-    if (!pyd) {
-        RG_LOGE("Failed to load positive Y face from memory: unrecognized image format.");
-        return {};
-    }
-    if (x != xtemp || y != ytemp || n != ntemp) {
-        RG_LOGE("Cubemap face dimensions do not match.");
-        return {};
-    }
-    auto nyd = stbi_load_from_memory(ny.data(), static_cast<int>(ny.size()), &xtemp, &ytemp, &ntemp, 4);
-    if (!nyd) {
-        RG_LOGE("Failed to load negative Y face from memory: unrecognized image format.");
-        return {};
-    }
-    if (x != xtemp || y != ytemp || n != ntemp) {
-        RG_LOGE("Cubemap face dimensions do not match.");
-        return {};
-    }
-
-    auto image = RawImage(ImageDesc(ImagePlaneDesc::make(ColorFormat::RGBA_8_8_8_8_UNORM(), (uint32_t)x, (uint32_t)y), 6, 1));
-    ImageDesc desc = image.desc();
-    if (desc.pitch(0) != static_cast<uint32_t>(4 * x)) {
-        RG_LOGE("Unsupported byte format.");
-        return{};
-    }
-    if (desc.plane(0).size < static_cast<uint32_t>(4 * x * y)) {
-        RG_LOGE("Unsupported byte format.");
-        return {};
-    }
-    memcpy(image.pixel(0, 0), nxd, 4 * x * y);
-    memcpy(image.pixel(1, 0), pxd, 4 * x * y);
-    memcpy(image.pixel(2, 0), nzd, 4 * x * y);
-    memcpy(image.pixel(3, 0), pzd, 4 * x * y);
-    memcpy(image.pixel(4, 0), pyd, 4 * x * y);
-    memcpy(image.pixel(5, 0), nyd, 4 * x * y);
-    RG_ASSERT(image.desc().valid());
-    stbi_image_free(nxd);
-    stbi_image_free(pxd);
-    stbi_image_free(nzd);
-    stbi_image_free(pzd);
-    stbi_image_free(pyd);
-    stbi_image_free(nyd);
-
-    return image;
 }

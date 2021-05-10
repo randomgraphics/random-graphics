@@ -1,25 +1,18 @@
 #include "pch.h"
 #include "dds.h"
 
-static GN::Logger * sLogger = GN::getLogger("GN.gfx.base.image");
-
-// *****************************************************************************
-// local types
-// *****************************************************************************
-
 #ifndef MAKE_FOURCC
 #define MAKE_FOURCC(ch0, ch1, ch2, ch3)     \
-            ((uint32)(uint8)(ch0) |         \
-            ((uint32)(uint8)(ch1) << 8) |   \
-            ((uint32)(uint8)(ch2) << 16) |  \
-            ((uint32)(uint8)(ch3) << 24 ))
+            ((uint32_t)(uint8_t)(ch0) |         \
+            ((uint32_t)(uint8_t)(ch1) << 8) |   \
+            ((uint32_t)(uint8_t)(ch2) << 16) |  \
+            ((uint32_t)(uint8_t)(ch3) << 24 ))
 #endif /* defined(MAKE_FOURCC) */
 
 ///
 /// DDS format flags
 ///
-enum DdsFlag
-{
+enum DdsFlag {
     DDS_DDPF_SIZE               = sizeof(DDPixelFormat)          ,
     DDS_DDPF_ALPHAPIXELS        = 0x00000001                     ,
     DDS_DDPF_ALPHA              = 0x00000002                     ,
@@ -68,120 +61,236 @@ enum DdsFlag
 ///
 /// \note this struct should be synchronized with color format definition
 ///
-static struct DdpfDesc
-{
-    GN::gfx::ColorFormat clrfmt;
-    DDPixelFormat        ddpf;
+static struct DdpfDesc {
+    rg::ColorFormat clrfmt;
+    DDPixelFormat   ddpf;
 } const s_ddpfDescTable[] = {
-    { GN::gfx::ColorFormat::BGR_8_8_8_UNORM,               { DDS_DDPF_SIZE, DDS_DDPF_RGB,                                     0, 24,   0xff0000,   0x00ff00,   0x0000ff,          0 } },
-    { GN::gfx::ColorFormat::BGRA_8_8_8_8_UNORM,            { DDS_DDPF_SIZE, DDS_DDPF_RGB | DDS_DDPF_ALPHAPIXELS,              0, 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000 } },
-    { GN::gfx::ColorFormat::BGRX_8_8_8_8_UNORM,            { DDS_DDPF_SIZE, DDS_DDPF_RGB,                                     0, 32, 0x00ff0000, 0x0000ff00, 0x000000ff,          0 } },
-    { GN::gfx::ColorFormat::BGR_5_6_5_UNORM,               { DDS_DDPF_SIZE, DDS_DDPF_RGB,                                     0, 16,     0xf800,     0x07e0,     0x001f,          0 } },
-    { GN::gfx::ColorFormat::BGRX_5_5_5_1_UNORM,            { DDS_DDPF_SIZE, DDS_DDPF_RGB,                                     0, 16,     0x7c00,     0x03e0,     0x001f,          0 } },
-    { GN::gfx::ColorFormat::BGRA_5_5_5_1_UNORM,            { DDS_DDPF_SIZE, DDS_DDPF_RGB | DDS_DDPF_ALPHAPIXELS,              0, 16,     0x7c00,     0x03e0,     0x001f,     0x8000 } },
-    { GN::gfx::ColorFormat::BGRA_4_4_4_4_UNORM,            { DDS_DDPF_SIZE, DDS_DDPF_RGB | DDS_DDPF_ALPHAPIXELS,              0, 16,     0x0f00,     0x00f0,     0x000f,     0xf000 } },
-  //{ GN::gfx::ColorFormat::BGR_2_3_3,                     { DDS_DDPF_SIZE, DDS_DDPF_RGB,                                     0,  8,       0xe0,       0x1c,       0x03,          0 } },
-    { GN::gfx::ColorFormat::A_8_UNORM,                     { DDS_DDPF_SIZE, DDS_DDPF_ALPHA,                                   0,  8,          0,          0,          0,       0xff } },
-  //{ GN::gfx::ColorFormat::BGRA_2_3_3_8,                  { DDS_DDPF_SIZE, DDS_DDPF_RGB | DDS_DDPF_ALPHAPIXELS,              0, 16,     0x00e0,     0x001c,     0x0003,     0xff00 } },
-    { GN::gfx::ColorFormat::BGRX_4_4_4_4_UNORM,            { DDS_DDPF_SIZE, DDS_DDPF_RGB,                                     0, 16,     0x0f00,     0x00f0,     0x000f,          0 } },
-  //{ GN::gfx::ColorFormat::BGRA_10_10_10_2_UNORM,         { DDS_DDPF_SIZE, DDS_DDPF_RGB | DDS_DDPF_ALPHAPIXELS,              0, 32, 0x3ff00000, 0x000ffc00, 0x000003ff, 0xc0000000 } },
-    { GN::gfx::ColorFormat::RGBA_8_8_8_8_UNORM,            { DDS_DDPF_SIZE, DDS_DDPF_RGB | DDS_DDPF_ALPHAPIXELS,              0, 32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000 } },
-    { GN::gfx::ColorFormat::RGBX_8_8_8_8_UNORM,            { DDS_DDPF_SIZE, DDS_DDPF_RGB,                                     0, 32, 0x000000ff, 0x0000ff00, 0x00ff0000,          0 } },
-    { GN::gfx::ColorFormat::RG_16_16_UNORM,                { DDS_DDPF_SIZE, DDS_DDPF_RGB,                                     0, 32, 0x0000ffff, 0xffff0000, 0x00000000,          0 } },
-    { GN::gfx::ColorFormat::RGBA_10_10_10_2_UNORM,         { DDS_DDPF_SIZE, DDS_DDPF_RGB | DDS_DDPF_ALPHAPIXELS,              0, 32, 0x000003ff, 0x000ffc00, 0x3ff00000, 0xc0000000 } },
-  //{ GN::gfx::ColorFormat::A8P8_UNORM,                    { DDS_DDPF_SIZE, DDS_DDPF_PALETTEINDEXED8 | DDS_DDPF_ALPHAPIXELS,  0, 16,          0,          0,          0,     0xff00 } },
-  //{ GN::gfx::ColorFormat::P8_UNORM,                      { DDS_DDPF_SIZE, DDS_DDPF_PALETTEINDEXED8,                         0,  8,          0,          0,          0,          0 } },
-    { GN::gfx::ColorFormat::L_8_UNORM,                     { DDS_DDPF_SIZE, DDS_DDPF_LUMINANCE,                               0,  8,       0xff,          0,          0,          0 } },
-    { GN::gfx::ColorFormat::LA_8_8_UNORM,                  { DDS_DDPF_SIZE, DDS_DDPF_LUMINANCE | DDS_DDPF_ALPHAPIXELS,        0, 16,     0x00ff,          0,          0,     0xff00 } },
-  //{ GN::gfx::ColorFormat::LA_4_4_UNORM,                  { DDS_DDPF_SIZE, DDS_DDPF_LUMINANCE | DDS_DDPF_ALPHAPIXELS,        0,  8,       0x0f,          0,          0,       0xf0 } },
-  //{ GN::gfx::ColorFormat::L_16_UNORM,                    { DDS_DDPF_SIZE, DDS_DDPF_LUMINANCE,                               0, 16,     0xffff,          0,          0,          0 } },
-    { GN::gfx::ColorFormat::RG_8_8_SNORM,                  { DDS_DDPF_SIZE, DDS_DDPF_BUMPDUDV,                                0, 16,     0x00ff,     0xff00,     0x0000,     0x0000 } },
-  //{ GN::gfx::ColorFormat::UVL_5_5_6,                     { DDS_DDPF_SIZE, DDS_DDPF_BUMPLUMINANCE,                           0, 16,     0x001f,     0x03e0,     0xfc00,          0 } },
-  //{ GN::gfx::ColorFormat::UVLX_8_8_8_8,                  { DDS_DDPF_SIZE, DDS_DDPF_BUMPLUMINANCE,                           0, 32, 0x000000ff, 0x0000ff00, 0x00ff0000,          0 } },
-    { GN::gfx::ColorFormat::RGBA_8_8_8_8_SNORM,            { DDS_DDPF_SIZE, DDS_DDPF_BUMPDUDV,                                0, 32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000 } },
-    { GN::gfx::ColorFormat::RG_16_16_UNORM,                { DDS_DDPF_SIZE, DDS_DDPF_BUMPDUDV,                                0, 32, 0x0000ffff, 0xffff0000, 0x00000000, 0x00000000 } },
-  //{ GN::gfx::ColorFormat::UVWA_10_10_10_2,               { DDS_DDPF_SIZE, DDS_DDPF_BUMPDUDV | DDS_DDPF_ALPHAPIXELS,         0, 32, 0x3ff00000, 0x000ffc00, 0x000003ff, 0xc0000000 } },
-    { GN::gfx::ColorFormat::R_16_UNORM,                    { DDS_DDPF_SIZE, DDS_DDPF_ZBUFFER,                                 0, 16,          0,     0xffff,          0,          0 } },
-  //{ GN::gfx::ColorFormat::UYVY,                          { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_UYVY,  0,          0,          0,          0,          0 } },
-  //{ GN::gfx::ColorFormat::R8G8_B8G8,                     { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,               DDS_FOURCC_R8G8_B8G8,  0,          0,          0,          0,          0 } },
-  //{ GN::gfx::ColorFormat::YUY2,                          { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_YUY2,  0,          0,          0,          0,          0 } },
-  //{ GN::gfx::ColorFormat::G8R8_G8B8,                     { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,               DDS_FOURCC_G8R8_G8B8,  0,          0,          0,          0,          0 } },
-    { GN::gfx::ColorFormat::DXT1_UNORM,                    { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_DXT1,  0,          0,          0,          0,          0 } },
-    { GN::gfx::ColorFormat::DXT3_UNORM,                    { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_DXT2,  0,          0,          0,          0,          0 } },
-    { GN::gfx::ColorFormat::DXT3_UNORM,                    { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_DXT3,  0,          0,          0,          0,          0 } },
-    { GN::gfx::ColorFormat::DXT5_UNORM,                    { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_DXT4,  0,          0,          0,          0,          0 } },
-    { GN::gfx::ColorFormat::DXT5_UNORM,                    { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_DXT5,  0,          0,          0,          0,          0 } },
-  //{ GN::gfx::ColorFormat::D_32_FLOAT,                    { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,               D3DFMT_D32F_LOCKABLE,  0,          0,          0,          0,          0 } },
-    { GN::gfx::ColorFormat::RGBA_16_16_16_16_UNORM,        { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,            DDS_FOURCC_A16B16G16R16,  0,          0,          0,          0,          0 } },
-    { GN::gfx::ColorFormat::RGBA_16_16_16_16_SNORM,        { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,            DDS_FOURCC_Q16W16V16U16,  0,          0,          0,          0,          0 } },
-    { GN::gfx::ColorFormat::R_16_FLOAT,                    { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_R16F,  0,          0,          0,          0,          0 } },
-    { GN::gfx::ColorFormat::RG_16_16_FLOAT,                { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                 DDS_FOURCC_G16R16F,  0,          0,          0,          0,          0 } },
-    { GN::gfx::ColorFormat::RGBA_16_16_16_16_FLOAT,        { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,           DDS_FOURCC_A16B16G16R16F,  0,          0,          0,          0,          0 } },
-    { GN::gfx::ColorFormat::R_32_FLOAT,                    { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_R32F,  0,          0,          0,          0,          0 } },
-    { GN::gfx::ColorFormat::RG_32_32_FLOAT,                { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                 DDS_FOURCC_G32R32F,  0,          0,          0,          0,          0 } },
-    { GN::gfx::ColorFormat::RGBA_32_32_32_32_FLOAT,        { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,           DDS_FOURCC_A32B32G32R32F,  0,          0,          0,          0,          0 } },
-  //{ GN::gfx::ColorFormat::CxV8U8,                        { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                  DDS_FOURCC_CxV8U8,  0,          0,          0,          0,          0 } },
+    { rg::ColorFormat::BGR_8_8_8_UNORM(),               { DDS_DDPF_SIZE, DDS_DDPF_RGB,                                     0, 24,   0xff0000,   0x00ff00,   0x0000ff,          0 } },
+    { rg::ColorFormat::BGRA_8_8_8_8_UNORM(),            { DDS_DDPF_SIZE, DDS_DDPF_RGB | DDS_DDPF_ALPHAPIXELS,              0, 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000 } },
+    { rg::ColorFormat::BGRX_8_8_8_8_UNORM(),            { DDS_DDPF_SIZE, DDS_DDPF_RGB,                                     0, 32, 0x00ff0000, 0x0000ff00, 0x000000ff,          0 } },
+    { rg::ColorFormat::BGR_5_6_5_UNORM(),               { DDS_DDPF_SIZE, DDS_DDPF_RGB,                                     0, 16,     0xf800,     0x07e0,     0x001f,          0 } },
+    { rg::ColorFormat::BGRX_5_5_5_1_UNORM(),            { DDS_DDPF_SIZE, DDS_DDPF_RGB,                                     0, 16,     0x7c00,     0x03e0,     0x001f,          0 } },
+    { rg::ColorFormat::BGRA_5_5_5_1_UNORM(),            { DDS_DDPF_SIZE, DDS_DDPF_RGB | DDS_DDPF_ALPHAPIXELS,              0, 16,     0x7c00,     0x03e0,     0x001f,     0x8000 } },
+    { rg::ColorFormat::BGRA_4_4_4_4_UNORM(),            { DDS_DDPF_SIZE, DDS_DDPF_RGB | DDS_DDPF_ALPHAPIXELS,              0, 16,     0x0f00,     0x00f0,     0x000f,     0xf000 } },
+  //{ rg::ColorFormat::BGR_2_3_3(),                     { DDS_DDPF_SIZE, DDS_DDPF_RGB,                                     0,  8,       0xe0,       0x1c,       0x03,          0 } },
+    { rg::ColorFormat::A_8_UNORM(),                     { DDS_DDPF_SIZE, DDS_DDPF_ALPHA,                                   0,  8,          0,          0,          0,       0xff } },
+  //{ rg::ColorFormat::BGRA_2_3_3_8(),                  { DDS_DDPF_SIZE, DDS_DDPF_RGB | DDS_DDPF_ALPHAPIXELS,              0, 16,     0x00e0,     0x001c,     0x0003,     0xff00 } },
+    { rg::ColorFormat::BGRX_4_4_4_4_UNORM(),            { DDS_DDPF_SIZE, DDS_DDPF_RGB,                                     0, 16,     0x0f00,     0x00f0,     0x000f,          0 } },
+  //{ rg::ColorFormat::BGRA_10_10_10_2_UNORM(),         { DDS_DDPF_SIZE, DDS_DDPF_RGB | DDS_DDPF_ALPHAPIXELS,              0, 32, 0x3ff00000, 0x000ffc00, 0x000003ff, 0xc0000000 } },
+    { rg::ColorFormat::RGBA_8_8_8_8_UNORM(),            { DDS_DDPF_SIZE, DDS_DDPF_RGB | DDS_DDPF_ALPHAPIXELS,              0, 32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000 } },
+    { rg::ColorFormat::RGBX_8_8_8_8_UNORM(),            { DDS_DDPF_SIZE, DDS_DDPF_RGB,                                     0, 32, 0x000000ff, 0x0000ff00, 0x00ff0000,          0 } },
+    { rg::ColorFormat::RG_16_16_UNORM(),                { DDS_DDPF_SIZE, DDS_DDPF_RGB,                                     0, 32, 0x0000ffff, 0xffff0000, 0x00000000,          0 } },
+    { rg::ColorFormat::RGBA_10_10_10_2_UNORM(),         { DDS_DDPF_SIZE, DDS_DDPF_RGB | DDS_DDPF_ALPHAPIXELS,              0, 32, 0x000003ff, 0x000ffc00, 0x3ff00000, 0xc0000000 } },
+  //{ rg::ColorFormat::A8P8_UNORM(),                    { DDS_DDPF_SIZE, DDS_DDPF_PALETTEINDEXED8 | DDS_DDPF_ALPHAPIXELS,  0, 16,          0,          0,          0,     0xff00 } },
+  //{ rg::ColorFormat::P8_UNORM(),                      { DDS_DDPF_SIZE, DDS_DDPF_PALETTEINDEXED8,                         0,  8,          0,          0,          0,          0 } },
+    { rg::ColorFormat::L_8_UNORM(),                     { DDS_DDPF_SIZE, DDS_DDPF_LUMINANCE,                               0,  8,       0xff,          0,          0,          0 } },
+    { rg::ColorFormat::LA_8_8_UNORM(),                  { DDS_DDPF_SIZE, DDS_DDPF_LUMINANCE | DDS_DDPF_ALPHAPIXELS,        0, 16,     0x00ff,          0,          0,     0xff00 } },
+  //{ rg::ColorFormat::LA_4_4_UNORM(),                  { DDS_DDPF_SIZE, DDS_DDPF_LUMINANCE | DDS_DDPF_ALPHAPIXELS,        0,  8,       0x0f,          0,          0,       0xf0 } },
+  //{ rg::ColorFormat::L_16_UNORM(),                    { DDS_DDPF_SIZE, DDS_DDPF_LUMINANCE,                               0, 16,     0xffff,          0,          0,          0 } },
+    { rg::ColorFormat::RG_8_8_SNORM(),                  { DDS_DDPF_SIZE, DDS_DDPF_BUMPDUDV,                                0, 16,     0x00ff,     0xff00,     0x0000,     0x0000 } },
+  //{ rg::ColorFormat::UVL_5_5_6(),                     { DDS_DDPF_SIZE, DDS_DDPF_BUMPLUMINANCE,                           0, 16,     0x001f,     0x03e0,     0xfc00,          0 } },
+  //{ rg::ColorFormat::UVLX_8_8_8_8(),                  { DDS_DDPF_SIZE, DDS_DDPF_BUMPLUMINANCE,                           0, 32, 0x000000ff, 0x0000ff00, 0x00ff0000,          0 } },
+    { rg::ColorFormat::RGBA_8_8_8_8_SNORM(),            { DDS_DDPF_SIZE, DDS_DDPF_BUMPDUDV,                                0, 32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000 } },
+    { rg::ColorFormat::RG_16_16_UNORM(),                { DDS_DDPF_SIZE, DDS_DDPF_BUMPDUDV,                                0, 32, 0x0000ffff, 0xffff0000, 0x00000000, 0x00000000 } },
+  //{ rg::ColorFormat::UVWA_10_10_10_2(),               { DDS_DDPF_SIZE, DDS_DDPF_BUMPDUDV | DDS_DDPF_ALPHAPIXELS,         0, 32, 0x3ff00000, 0x000ffc00, 0x000003ff, 0xc0000000 } },
+    { rg::ColorFormat::R_16_UNORM(),                    { DDS_DDPF_SIZE, DDS_DDPF_ZBUFFER,                                 0, 16,          0,     0xffff,          0,          0 } },
+  //{ rg::ColorFormat::UYVY(),                          { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_UYVY,  0,          0,          0,          0,          0 } },
+  //{ rg::ColorFormat::R8G8_B8G8(),                     { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,               DDS_FOURCC_R8G8_B8G8,  0,          0,          0,          0,          0 } },
+  //{ rg::ColorFormat::YUY2(),                          { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_YUY2,  0,          0,          0,          0,          0 } },
+  //{ rg::ColorFormat::G8R8_G8B8(),                     { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,               DDS_FOURCC_G8R8_G8B8,  0,          0,          0,          0,          0 } },
+    { rg::ColorFormat::DXT1_UNORM(),                    { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_DXT1,  0,          0,          0,          0,          0 } },
+    { rg::ColorFormat::DXT3_UNORM(),                    { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_DXT2,  0,          0,          0,          0,          0 } },
+    { rg::ColorFormat::DXT3_UNORM(),                    { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_DXT3,  0,          0,          0,          0,          0 } },
+    { rg::ColorFormat::DXT5_UNORM(),                    { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_DXT4,  0,          0,          0,          0,          0 } },
+    { rg::ColorFormat::DXT5_UNORM(),                    { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_DXT5,  0,          0,          0,          0,          0 } },
+  //{ rg::ColorFormat::D_32_FLOAT(),                    { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,               D3DFMT_D32F_LOCKABLE,  0,          0,          0,          0,          0 } },
+    { rg::ColorFormat::RGBA_16_16_16_16_UNORM(),        { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,            DDS_FOURCC_A16B16G16R16,  0,          0,          0,          0,          0 } },
+    { rg::ColorFormat::RGBA_16_16_16_16_SNORM(),        { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,            DDS_FOURCC_Q16W16V16U16,  0,          0,          0,          0,          0 } },
+    { rg::ColorFormat::R_16_FLOAT(),                    { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_R16F,  0,          0,          0,          0,          0 } },
+    { rg::ColorFormat::RG_16_16_FLOAT(),                { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                 DDS_FOURCC_G16R16F,  0,          0,          0,          0,          0 } },
+    { rg::ColorFormat::RGBA_16_16_16_16_FLOAT(),        { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,           DDS_FOURCC_A16B16G16R16F,  0,          0,          0,          0,          0 } },
+    { rg::ColorFormat::R_32_FLOAT(),                    { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                    DDS_FOURCC_R32F,  0,          0,          0,          0,          0 } },
+    { rg::ColorFormat::RG_32_32_FLOAT(),                { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                 DDS_FOURCC_G32R32F,  0,          0,          0,          0,          0 } },
+    { rg::ColorFormat::RGBA_32_32_32_32_FLOAT(),        { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,           DDS_FOURCC_A32B32G32R32F,  0,          0,          0,          0,          0 } },
+  //{ rg::ColorFormat::CxV8U8(),                        { DDS_DDPF_SIZE, DDS_DDPF_FOURCC,                  DDS_FOURCC_CxV8U8,  0,          0,          0,          0,          0 } },
 };
 
-struct DX10Info
-{
-    sint32 format;    // DXGI_FORMAT
-    sint32 dim;       // D3D10_RESOURCE_DIMENSION
-    uint32 miscFlag;  // D3D10_RESOURCE_MISC_FLAG
-    uint32 arraySize;
-    uint32 reserved;
+/// DXGI_FORMAT enum copied from MSDN (https://docs.microsoft.com/en-us/windows/win32/api/dxgiformat/ne-dxgiformat-dxgi_format)
+enum DXGI_FORMAT {
+    DXGI_FORMAT_UNKNOWN,
+    DXGI_FORMAT_R32G32B32A32_TYPELESS,
+    DXGI_FORMAT_R32G32B32A32_FLOAT,
+    DXGI_FORMAT_R32G32B32A32_UINT,
+    DXGI_FORMAT_R32G32B32A32_SINT,
+    DXGI_FORMAT_R32G32B32_TYPELESS,
+    DXGI_FORMAT_R32G32B32_FLOAT,
+    DXGI_FORMAT_R32G32B32_UINT,
+    DXGI_FORMAT_R32G32B32_SINT,
+    DXGI_FORMAT_R16G16B16A16_TYPELESS,
+    DXGI_FORMAT_R16G16B16A16_FLOAT,
+    DXGI_FORMAT_R16G16B16A16_UNORM,
+    DXGI_FORMAT_R16G16B16A16_UINT,
+    DXGI_FORMAT_R16G16B16A16_SNORM,
+    DXGI_FORMAT_R16G16B16A16_SINT,
+    DXGI_FORMAT_R32G32_TYPELESS,
+    DXGI_FORMAT_R32G32_FLOAT,
+    DXGI_FORMAT_R32G32_UINT,
+    DXGI_FORMAT_R32G32_SINT,
+    DXGI_FORMAT_R32G8X24_TYPELESS,
+    DXGI_FORMAT_D32_FLOAT_S8X24_UINT,
+    DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS,
+    DXGI_FORMAT_X32_TYPELESS_G8X24_UINT,
+    DXGI_FORMAT_R10G10B10A2_TYPELESS,
+    DXGI_FORMAT_R10G10B10A2_UNORM,
+    DXGI_FORMAT_R10G10B10A2_UINT,
+    DXGI_FORMAT_R11G11B10_FLOAT,
+    DXGI_FORMAT_R8G8B8A8_TYPELESS,
+    DXGI_FORMAT_R8G8B8A8_UNORM,
+    DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+    DXGI_FORMAT_R8G8B8A8_UINT,
+    DXGI_FORMAT_R8G8B8A8_SNORM,
+    DXGI_FORMAT_R8G8B8A8_SINT,
+    DXGI_FORMAT_R16G16_TYPELESS,
+    DXGI_FORMAT_R16G16_FLOAT,
+    DXGI_FORMAT_R16G16_UNORM,
+    DXGI_FORMAT_R16G16_UINT,
+    DXGI_FORMAT_R16G16_SNORM,
+    DXGI_FORMAT_R16G16_SINT,
+    DXGI_FORMAT_R32_TYPELESS,
+    DXGI_FORMAT_D32_FLOAT,
+    DXGI_FORMAT_R32_FLOAT,
+    DXGI_FORMAT_R32_UINT,
+    DXGI_FORMAT_R32_SINT,
+    DXGI_FORMAT_R24G8_TYPELESS,
+    DXGI_FORMAT_D24_UNORM_S8_UINT,
+    DXGI_FORMAT_R24_UNORM_X8_TYPELESS,
+    DXGI_FORMAT_X24_TYPELESS_G8_UINT,
+    DXGI_FORMAT_R8G8_TYPELESS,
+    DXGI_FORMAT_R8G8_UNORM,
+    DXGI_FORMAT_R8G8_UINT,
+    DXGI_FORMAT_R8G8_SNORM,
+    DXGI_FORMAT_R8G8_SINT,
+    DXGI_FORMAT_R16_TYPELESS,
+    DXGI_FORMAT_R16_FLOAT,
+    DXGI_FORMAT_D16_UNORM,
+    DXGI_FORMAT_R16_UNORM,
+    DXGI_FORMAT_R16_UINT,
+    DXGI_FORMAT_R16_SNORM,
+    DXGI_FORMAT_R16_SINT,
+    DXGI_FORMAT_R8_TYPELESS,
+    DXGI_FORMAT_R8_UNORM,
+    DXGI_FORMAT_R8_UINT,
+    DXGI_FORMAT_R8_SNORM,
+    DXGI_FORMAT_R8_SINT,
+    DXGI_FORMAT_A8_UNORM,
+    DXGI_FORMAT_R1_UNORM,
+    DXGI_FORMAT_R9G9B9E5_SHAREDEXP,
+    DXGI_FORMAT_R8G8_B8G8_UNORM,
+    DXGI_FORMAT_G8R8_G8B8_UNORM,
+    DXGI_FORMAT_BC1_TYPELESS,
+    DXGI_FORMAT_BC1_UNORM,
+    DXGI_FORMAT_BC1_UNORM_SRGB,
+    DXGI_FORMAT_BC2_TYPELESS,
+    DXGI_FORMAT_BC2_UNORM,
+    DXGI_FORMAT_BC2_UNORM_SRGB,
+    DXGI_FORMAT_BC3_TYPELESS,
+    DXGI_FORMAT_BC3_UNORM,
+    DXGI_FORMAT_BC3_UNORM_SRGB,
+    DXGI_FORMAT_BC4_TYPELESS,
+    DXGI_FORMAT_BC4_UNORM,
+    DXGI_FORMAT_BC4_SNORM,
+    DXGI_FORMAT_BC5_TYPELESS,
+    DXGI_FORMAT_BC5_UNORM,
+    DXGI_FORMAT_BC5_SNORM,
+    DXGI_FORMAT_B5G6R5_UNORM,
+    DXGI_FORMAT_B5G5R5A1_UNORM,
+    DXGI_FORMAT_B8G8R8A8_UNORM,
+    DXGI_FORMAT_B8G8R8X8_UNORM,
+    DXGI_FORMAT_R10G10B10_XR_BIAS_A2_UNORM,
+    DXGI_FORMAT_B8G8R8A8_TYPELESS,
+    DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,
+    DXGI_FORMAT_B8G8R8X8_TYPELESS,
+    DXGI_FORMAT_B8G8R8X8_UNORM_SRGB,
+    DXGI_FORMAT_BC6H_TYPELESS,
+    DXGI_FORMAT_BC6H_UF16,
+    DXGI_FORMAT_BC6H_SF16,
+    DXGI_FORMAT_BC7_TYPELESS,
+    DXGI_FORMAT_BC7_UNORM,
+    DXGI_FORMAT_BC7_UNORM_SRGB,
+    DXGI_FORMAT_AYUV,
+    DXGI_FORMAT_Y410,
+    DXGI_FORMAT_Y416,
+    DXGI_FORMAT_NV12,
+    DXGI_FORMAT_P010,
+    DXGI_FORMAT_P016,
+    DXGI_FORMAT_420_OPAQUE,
+    DXGI_FORMAT_YUY2,
+    DXGI_FORMAT_Y210,
+    DXGI_FORMAT_Y216,
+    DXGI_FORMAT_NV11,
+    DXGI_FORMAT_AI44,
+    DXGI_FORMAT_IA44,
+    DXGI_FORMAT_P8,
+    DXGI_FORMAT_A8P8,
+    DXGI_FORMAT_B4G4R4A4_UNORM,
+    DXGI_FORMAT_P208,
+    DXGI_FORMAT_V208,
+    DXGI_FORMAT_V408,
+    DXGI_FORMAT_SAMPLER_FEEDBACK_MIN_MIP_OPAQUE,
+    DXGI_FORMAT_SAMPLER_FEEDBACK_MIP_REGION_USED_OPAQUE,
+    DXGI_FORMAT_FORCE_UINT
 };
 
-// *****************************************************************************
-// local functions
-// *****************************************************************************
+struct DXGIFormatInfo {
+    rg::ColorFormat format;
+    DXGI_FORMAT     dxgi;
+    const char *    dxgiName;
+};
+static const DXGIFormatInfo dxgiFormats[] = {
+#define D3D_FORMAT(format, d3d9, dxgi) { rg::ColorFormat::format(), DXGI_FORMAT_##dxgi, "DXGI_FORMAT_"#dxgi },
+#include "d3d-format-meta.h"
+#undef D3D_FORMAT
+};
 
-///
+struct DX10Info {
+    DXGI_FORMAT format;    // DXGI_FORMAT
+    int32_t     dim;       // D3D10_RESOURCE_DIMENSION
+    uint32_t    miscFlag;  // D3D10_RESOURCE_MISC_FLAG
+    uint32_t    arraySize;
+    uint32_t    reserved;
+};
+
+// ---------------------------------------------------------------------------------------------------------------------
 /// return image face count
-// -----------------------------------------------------------------------------
-static uint32 sGetImageFaceCount( const DDSFileHeader & header )
-{
-    if( DDS_DDSD_DEPTH & header.flags &&
-        DDS_CAPS_COMPLEX & header.caps &&
-        DDS_CAPS2_VOLUME & header.caps2 )
-    {
+static uint32_t sGetImageFaceCount(const DDSFileHeader & header) {
+    if ((DDS_DDSD_DEPTH   & header.flags) &&
+        (DDS_CAPS_COMPLEX & header.caps)  &&
+        (DDS_CAPS2_VOLUME & header.caps2)) {
         return 1; // volume texture
-    }
-    else if( DDS_CAPS_COMPLEX & header.caps &&
-             DDS_CAPS2_CUBEMAP & header.caps2 &&
-             DDS_CAPS2_CUBEMAP_ALLFACES ==
-             (header.caps2 & DDS_CAPS2_CUBEMAP_ALLFACES) )
-    {
+    } else if (DDS_CAPS_COMPLEX  & header.caps &&
+               DDS_CAPS2_CUBEMAP & header.caps2 &&
+               DDS_CAPS2_CUBEMAP_ALLFACES ==
+               (header.caps2 & DDS_CAPS2_CUBEMAP_ALLFACES)) {
         return 6; // cubemap
-    }
-    else if( 0 == (DDS_CAPS2_CUBEMAP & header.caps2) &&
-             0 == (DDS_CAPS2_VOLUME & header.caps2) )
-    {
+    } else if (0 == (DDS_CAPS2_CUBEMAP & header.caps2) &&
+               0 == (DDS_CAPS2_VOLUME & header.caps2)) {
         return 1; // 2D texture
-    }
-    else
-    {
-        GN_ERROR(sLogger)( "Fail to detect image face count!" );
+    } else {
+        RG_LOGE("Fail to detect image face count!");
         return 0;
     }
 }
 
-///
+// ---------------------------------------------------------------------------------------------------------------------
 /// return image depth
-// -----------------------------------------------------------------------------
-static uint32 sGetImageDepth( const DDSFileHeader & header )
-{
+static uint32_t sGetImageDepth( const DDSFileHeader & header ) {
     return DDS_DDSD_DEPTH & header.flags ? header.depth : 1;
 }
 
-//
+// ---------------------------------------------------------------------------------------------------------------------
 /// \brief return FMT_INVAID if falied
-// -----------------------------------------------------------------------------
-static GN::gfx::ColorFormat getImageFormat( const DDPixelFormat & ddpf )
-{
-    GN_GUARD;
-
-    uint32 flags = ddpf.flags;
+static rg::ColorFormat getImageFormat( const DDPixelFormat & ddpf ) {
+    uint32_t flags = ddpf.flags;
     if( flags & DDS_DDPF_FOURCC ) flags = DDS_DDPF_FOURCC;
 
     bool fourcc = !!( flags & DDS_DDPF_FOURCC );
@@ -210,10 +319,9 @@ static GN::gfx::ColorFormat getImageFormat( const DDPixelFormat & ddpf )
                           | DDS_DDPF_ALPHA
                           | DDS_DDPF_BUMPDUDV) );
 
-    for( uint32 i = 0;
+    for( uint32_t i = 0;
          i < sizeof(s_ddpfDescTable)/sizeof(s_ddpfDescTable[0]);
-         ++i )
-    {
+         ++i ) {
         const DdpfDesc & desc = s_ddpfDescTable[i];
         if( DDS_DDPF_SIZE != ddpf.size ) continue;
         if( flags != desc.ddpf.flags ) continue;
@@ -229,216 +337,178 @@ static GN::gfx::ColorFormat getImageFormat( const DDPixelFormat & ddpf )
     }
 
     // failed
-    GN_ERROR(sLogger)( "unknown DDS format!" );
-    return GN::gfx::ColorFormat::UNKNOWN;
-
-    GN_UNGUARD;
+    RG_LOGE( "unknown DDS format!" );
+    return rg::ColorFormat::UNKNOWN();
 }
 
-// *****************************************************************************
+// ---------------------------------------------------------------------------------------------------------------------
+//
+static rg::ColorFormat DXGIFormat2ColorFormat(DXGI_FORMAT dxgi) {
+    for(const auto & i : dxgiFormats) {
+        if (i.dxgi == dxgi) {
+            if (i.format) {
+                return i.format;
+            } else {
+                RG_LOGE( "unsupported DXGI format: %s", i.dxgiName);
+                return rg::ColorFormat::UNKNOWN();
+            }
+        }
+    }
+    RG_LOGE( "invalid DXGI format: %d", dxgi);
+    return rg::ColorFormat::UNKNOWN();
+}
+
+// *********************************************************************************************************************
 // DDSReader public functions
-// *****************************************************************************
+// *********************************************************************************************************************
 
+// ---------------------------------------------------------------------------------------------------------------------
 //
-//
-// -----------------------------------------------------------------------------
-bool DDSReader::checkFormat()
-{
-    GN_GUARD;
-
-    char buf[5];
-
-    // check magic number
-    size_t sz;
-    if( !mFile->read( buf, 4, &sz ) || 4 != sz ) return false;
-
-    buf[4] = 0;
-
-    return 0 == GN::str::compare( buf, "DDS " );
-
-    GN_UNGUARD;
+bool DDSReader::checkFormat() {
+    uint32_t u32;
+    if (!_file.read((char*)&u32, 4) || 4 != _file.gcount()) return false;
+    return u32 == MAKE_FOURCC('D', 'D', 'S', ' ');
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
 //
-//
-// -----------------------------------------------------------------------------
-GN::gfx::ImageDesc DDSReader::readHeader()
-{
-    GN_GUARD;
+const rg::ImageDesc & DDSReader::readHeader() {
 
-    size_t read;
+    _imgDesc = {};
 
     // read header
-    if (!mFile->read(&mHeader, sizeof(mHeader), &read) || read != sizeof(mHeader)) {
-        GN_ERROR(sLogger)( "fail to read DDS file header!" );
-        return {};
+    if (!_file.read((char*)&_header, sizeof(_header)) || _file.gcount() != sizeof(_header)) {
+        RG_LOGE( "fail to read DDS file header!" );
+        return _imgDesc;
     }
 
     // validate header flags
-    uint32 required_flags = DDS_DDSD_WIDTH | DDS_DDSD_HEIGHT;
-    if( required_flags != (required_flags & mHeader.flags) )
+    uint32_t required_flags = DDS_DDSD_WIDTH | DDS_DDSD_HEIGHT;
+    if( required_flags != (required_flags & _header.flags) )
     {
-        GN_ERROR(sLogger)( "damage DDS header!" );
-        return {};
+        RG_LOGE( "damage DDS header!" );
+        return _imgDesc;
     }
 
-    if( DDS_DDPF_PALETTEINDEXED8 & mHeader.ddpf.flags )
+    if( DDS_DDPF_PALETTEINDEXED8 & _header.ddpf.flags )
     {
-        GN_ERROR(sLogger)( "do not support palette format!" );
-        return {};
+        RG_LOGE( "do not support palette format!" );
+        return _imgDesc;
     }
 
     // get image format
-    GN::gfx::ColorFormat format;
-    if( GN_MAKE_FOURCC('D','X','1','0') == mHeader.ddpf.fourcc )
+    if( MAKE_FOURCC('D','X','1','0') == _header.ddpf.fourcc )
     {
         // read DX10 info
         DX10Info dx10;
-        if (!mFile->read(&dx10, sizeof(dx10), &read) || read != sizeof(dx10)) {
-            GN_ERROR(sLogger)( "fail to read DX10 info header!" );
-            return {};
+        if (!_file.read((char*)&dx10, sizeof(dx10)) || _file.gcount() != sizeof(dx10)) {
+            RG_LOGE( "fail to read DX10 info header!" );
+            return _imgDesc;
         }
 
-        mOriginalFormat = GN::gfx::dxgiFormat2ColorFormat( dx10.format );
-        if( GN::gfx::ColorFormat::UNKNOWN == mOriginalFormat ) return {};
+        _originalFormat = DXGIFormat2ColorFormat(dx10.format);
+        if(rg::ColorFormat::UNKNOWN() == _originalFormat) return _imgDesc;
     }
     else
     {
-        mOriginalFormat = getImageFormat( mHeader.ddpf );
-        if( GN::gfx::ColorFormat::UNKNOWN == mOriginalFormat ) return {};
+        _originalFormat = getImageFormat( _header.ddpf );
+        if( rg::ColorFormat::UNKNOWN() == _originalFormat ) return _imgDesc;
     }
 
     // BGR format is not compatible with D3D10/D3D11 hardware. So we need to convert it to RGB format.
     // sUpdateSwizzle() will update format swizzle from BGR to RGB. And we'll do data convertion later
     // in readImage() function.
-    mFormatConversion = sCheckFormatConversion(mOriginalFormat);
+    _formatConversion = sCheckFormatConversion(_originalFormat);
 
     // grok image dimension
-    uint32 faces = sGetImageFaceCount( mHeader );
-    if( 0 == faces ) return {};
-    uint32 width = mHeader.width;
-    uint32 height = mHeader.height;
-    uint32 depth = sGetImageDepth( mHeader );
+    uint32_t faces  = sGetImageFaceCount( _header );
+    if (0 == faces) return _imgDesc;
+    uint32_t width  = _header.width;
+    uint32_t height = _header.height;
+    uint32_t depth  = sGetImageDepth( _header );
 
     // grok miplevel information
-    bool hasMipmap = ( DDS_DDSD_MIPMAPCOUNT & mHeader.flags )
-                  && ( DDS_CAPS_MIPMAP & mHeader.caps )
-                  && ( DDS_CAPS_COMPLEX & mHeader.caps );
-    uint32 levels = hasMipmap ? mHeader.mipCount : 1;
+    bool hasMipmap = ( DDS_DDSD_MIPMAPCOUNT & _header.flags )
+                  && ( DDS_CAPS_MIPMAP & _header.caps )
+                  && ( DDS_CAPS_COMPLEX & _header.caps );
+    uint32_t levels = hasMipmap ? _header.mipCount : 1;
     if( 0 == levels ) levels = 1;
 
-    // grok mipmaps
-    mImgDesc = GN::gfx::ImageDesc(GN::gfx::ImagePlaneDesc::make(mOriginalFormat, width, height, depth), faces, levels);
-    GN_ASSERT( mImgDesc.valid() );
+    // Create image descriptor. Here we assume that the offset of each mipmap layer calculated by the image descriptor
+    // completely matches the actual data offset in DDS file.
+    _imgDesc = rg::ImageDesc(rg::ImagePlaneDesc::make(_originalFormat, width, height, depth), faces, levels);
+    RG_ASSERT( _imgDesc.valid() );
 
     // success
-    return mImgDesc;
-
-    GN_UNGUARD;
+    return _imgDesc;
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
 //
-//
-// -----------------------------------------------------------------------------
-bool DDSReader::readPixels(void * o_data, size_t o_size) const
-{
-    GN_GUARD;
-
+bool DDSReader::readPixels(void * o_data, size_t o_size) const {
     if (!o_data) {
-        GN_ERROR(sLogger)("null output buffer.");
+        RG_LOGE("null output buffer.");
         return false;
     }
-    if (o_size < mImgDesc.size) {
-        GN_ERROR(sLogger)("output buffer size is not large enough");
+    if (o_size < _imgDesc.size) {
+        RG_LOGE("output buffer size is not large enough");
         return false;
     }
 
-    size_t read;
-    if (!mFile->read(o_data, mImgDesc.size, &read) || read != mImgDesc.size) {
-        GN_ERROR(sLogger)("failed to read DDS pixels.");
+    if (!_file.read((char*)o_data, (int)_imgDesc.size) || _file.gcount() != (int)_imgDesc.size) {
+        RG_LOGE("failed to read DDS pixels.");
         return false;
     }
 
     // Do format conversion, if needed.
-    if( FC_NONE != mFormatConversion )
+    if( FC_NONE != _formatConversion )
     {
         // There might be gaps between each mipmap level, or even between each scan line.
         // But we assume that the data in the gaps are not important and could be converted
         // as well without any side effects. We also assume that each scan line always starts
         // from pixel size aligned address (4 bytes aligned for 8888 format) regardless of gaps.
-        sConvertFormat( mFormatConversion, mOriginalFormat, mImgDesc.format(), o_data, mImgDesc.size );
+        sConvertFormat( _formatConversion, o_data, _imgDesc.size );
     }
 
     // success
     return true;
-
-    GN_UNGUARD;
 }
 
-// *****************************************************************************
+// *********************************************************************************************************************
 // DDSReader private functions
-// *****************************************************************************
+// *********************************************************************************************************************
 
+// ---------------------------------------------------------------------------------------------------------------------
 //
-//
-// -----------------------------------------------------------------------------
 DDSReader::FormatConversion
-DDSReader::sCheckFormatConversion( GN::gfx::ColorFormat & format )
-{
-    using namespace GN::gfx;
-
-    if( ColorFormat::LAYOUT_8_8_8_8 == format.layout &&
-        ColorFormat::SWIZZLE_B == format.swizzle0 &&
-        ColorFormat::SWIZZLE_G == format.swizzle1 &&
-        ColorFormat::SWIZZLE_R == format.swizzle2 )
-    {
-        format.swizzle0 = ColorFormat::SWIZZLE_R;
-        format.swizzle1 = ColorFormat::SWIZZLE_G;
-        format.swizzle2 = ColorFormat::SWIZZLE_B;
-        format.swizzle3 = ColorFormat::SWIZZLE_A;
-        return FC_BGRX8888_TO_RGBA8888;
-    }
-    else
-    {
+DDSReader::sCheckFormatConversion(rg::ColorFormat format) {
+    if (rg::ColorFormat::LAYOUT_8_8_8_8 == format.layout &&
+        rg::ColorFormat::SWIZZLE_B == format.swizzle0 &&
+        rg::ColorFormat::SWIZZLE_G == format.swizzle1 &&
+        rg::ColorFormat::SWIZZLE_R == format.swizzle2) {
+        format.swizzle0 = rg::ColorFormat::SWIZZLE_R;
+        format.swizzle1 = rg::ColorFormat::SWIZZLE_G;
+        format.swizzle2 = rg::ColorFormat::SWIZZLE_B;
+        format.swizzle3 = rg::ColorFormat::SWIZZLE_A;
+        return FC_BGRA8888_TO_RGBA8888;
+    } else {
         return FC_NONE;
     }
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
 //
-//
-// -----------------------------------------------------------------------------
-void DDSReader::sConvertFormat(
-    FormatConversion fc,
-    GN::gfx::ColorFormat from,
-    GN::gfx::ColorFormat to,
-    void * data,
-    size_t size )
-{
-    using namespace GN::gfx;
-
-    GN_UNUSED_PARAM( to );
-
-    if( FC_BGRX8888_TO_RGBA8888 == fc )
-    {
-        GN_ASSERT( ColorFormat::LAYOUT_8_8_8_8 == from.layout );
-        GN_ASSERT( ColorFormat::LAYOUT_8_8_8_8 == to.layout );
-
+void DDSReader::sConvertFormat(FormatConversion fc, void * data, size_t size ) {
+    if (FC_BGRA8888_TO_RGBA8888 == fc) {
         size_t   numPixels = size / 4;
-        uint32 * pixels = (uint32*)data;
-        uint32 * end = pixels + numPixels;
-        for( ; pixels < end; ++pixels )
-        {
-            // Determine Alpha channel.
-            uint32 a;
-            switch( from.swizzle3 )
-            {
-                case ColorFormat::SWIZZLE_0 : a = 0; break;
-                case ColorFormat::SWIZZLE_1 : a = 0xFF000000; break;
-                default                     : a = ((*pixels)&0xFF000000);
-            }
-
-            //        A              R                         G                       B
-            *pixels = a | (((*pixels)&0xFF0000)>>16) | ((*pixels)&0xFF00) | (((*pixels)&0xFF)<<16);
+        uint32_t * pixels  = (uint32_t*)data;
+        uint32_t * end     = pixels + numPixels;
+        for( ; pixels < end; ++pixels ) {
+            uint32_t a = (*pixels) & 0xFF000000;
+            uint32_t r = (*pixels) & 0xFF0000;
+            uint32_t g = (*pixels) & 0xFF00;
+            uint32_t b = (*pixels) & 0xFF;
+            *pixels = a | (r>>16) | g | (b<<16);
         }
     }
 }

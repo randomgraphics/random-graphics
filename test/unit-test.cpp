@@ -58,12 +58,28 @@ TEST_CASE("formatstr", "[base]") {
 // ---------------------------------------------------------------------------------------------------------------------
 // quick test of image loading from file.
 TEST_CASE("image", "[base]") {
-    auto path = std::filesystem::path(TEST_FOLDER) / "alien-planet.jpg";
-    RG_LOGI("load image from file: %s", path.string().c_str());
-    RawImage ri = RawImage::load(path.string());
-    REQUIRE(!ri.empty());
-    CHECK(ri.width() == 600);
-    CHECK(ri.height() == 486);
+    SECTION("dxt1") {
+        auto desc = ImageDesc(rg::ImagePlaneDesc::make(ColorFormat::DXT1_UNORM(), 256, 256, 1), 6, 0);
+        REQUIRE(desc.plane(0, 0).alignment == 8);
+        REQUIRE(desc.slice(0, 0) == 32768);
+        REQUIRE(desc.slice(0, 1) == 8192);
+        REQUIRE(desc.slice(0, 2) == 2048);
+        REQUIRE(desc.slice(0, 3) == 512);
+        REQUIRE(desc.slice(0, 4) == 128);
+        REQUIRE(desc.slice(0, 5) == 32);
+        REQUIRE(desc.slice(0, 6) == 8);
+        REQUIRE(desc.slice(0, 7) == 8);
+        REQUIRE(desc.slice(0, 8) == 8);
+        REQUIRE(desc.size == 43704 * 6);
+    }
+    SECTION("jpg") {
+        auto path = std::filesystem::path(TEST_FOLDER) / "alien-planet.jpg";
+        RG_LOGI("load image from file: %s", path.string().c_str());
+        RawImage ri = RawImage::load(path.string());
+        REQUIRE(!ri.empty());
+        CHECK(ri.width() == 600);
+        CHECK(ri.height() == 486);
+    }
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

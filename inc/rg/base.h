@@ -1022,6 +1022,11 @@ union ColorFormat {
     constexpr uint8_t bytesPerBlock() const { return LAYOUTS[layout].blockBytes; }
 
     ///
+    /// convert to bool
+    ///
+    constexpr operator bool () const { return !empty(); }
+
+    ///
     /// equality check
     ///
     constexpr bool operator==( const ColorFormat & c ) const { return u32 == c.u32; }
@@ -1236,6 +1241,7 @@ struct ImagePlaneDesc {
     uint32_t step = 0;
 
     /// Bytes from one row to next. Minimal valid value is (width * step) and aligned to alignment.
+    /// For compressed format, this is number of bytes in one scanline.
     uint32_t pitch = 0;
 
     /// Bytes from one slice to next. Minimal valid value is (pitch * height)
@@ -1247,8 +1253,8 @@ struct ImagePlaneDesc {
     /// Bytes between first pixel of the plane to the first pixel of the whole image.
     uint32_t offset = 0;
 
-    /// row alignment
-    uint32_t rowAlignment = 0;
+    /// memory alignment requirement of the plane.
+    uint32_t alignment = 0;
 
     /// returns offset of particular pixel within the plane
     size_t pixel(size_t x, size_t y, size_t z = 0) const {
@@ -1274,7 +1280,7 @@ struct ImagePlaneDesc {
             && slice == rhs.slice
             && size == rhs.size
             && offset == rhs.offset
-            && rowAlignment == rhs.rowAlignment;
+            && alignment == rhs.alignment;
     }
 
     bool operator != (const ImagePlaneDesc & rhs) const { return !operator==(rhs); }
@@ -1289,7 +1295,7 @@ struct ImagePlaneDesc {
         if (slice != rhs.slice) return slice < rhs.slice;
         if (size != rhs.size) return size < rhs.size;
         if (offset != rhs.offset) return offset < rhs.offset;
-        return rowAlignment < rhs.rowAlignment;
+        return alignment < rhs.alignment;
     }
 
     /// Create a new image plane descriptor
@@ -1423,7 +1429,8 @@ public:
     /// \name ctor/dtor/copy/move
     //@{
     RawImage() = default;
-    RawImage(ImageDesc&& desc, const void * initialContent = nullptr, size_t initialContentSizeInbytes = 0);
+    RawImage(ImageDesc && desc, const void * initialContent = nullptr, size_t initialContentSizeInbytes = 0);
+    RawImage(const ImageDesc & desc, const void * initialContent = nullptr, size_t initialContentSizeInbytes = 0);
     RG_NO_COPY(RawImage);
     RG_DEFAULT_MOVE(RawImage);
     //@}
@@ -1486,22 +1493,6 @@ public:
         return load(f);
     }
 
-    /// Helper method to load cube map from indiviual face images.
-    ///
-    static RawImage loadCube(
-        const ConstRange<uint8_t> & nx,  // negative X
-        const ConstRange<uint8_t> & px,  // positive X
-        const ConstRange<uint8_t> & nz,  // negative Z
-        const ConstRange<uint8_t> & pz,  // positive Z
-        const ConstRange<uint8_t> & py,  // positive Y
-        const ConstRange<uint8_t> & ny); // negative Y
-
-    /// Helper method to load cube map from indiviual face images.
-    ///
-    static RawImage loadCube(const ConstRange<uint8_t> * faces) {
-        return loadCube(faces[0], faces[1], faces[2], faces[3], faces[4], faces[5]);
-    }
-
     //@}
 
 private:
@@ -1513,6 +1504,9 @@ private:
     };
     std::unique_ptr<uint8_t, FreePixelArray> mPixels;
     ImageDesc mDesc;
+
+private:
+    void construct(const void * initialContent, size_t initialContentSizeInbytes);
 };
 
 } // namespace rg
