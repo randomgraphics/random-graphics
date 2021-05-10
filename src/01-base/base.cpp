@@ -5,6 +5,7 @@
 #include <sstream>
 #if RG_MSWIN
 #include <windows.h>
+#include "stack-walker.h"
 #else
 #include <signal.h>
 #endif
@@ -36,8 +37,10 @@ void rg::breakIntoDebugger() {
     ss << file << ":" << line << " - " << message << std::endl;
     auto bt = backtrace();
     if (!bt.empty()) {
-        RG_LOGE("%s", bt.c_str());
+        RG_LOGE("%s\n%s", message, bt.c_str());
         ss << backtrace() << std::endl;
+    } else {
+        RG_LOGE("%s", message);
     }
     throw std::runtime_error(ss.str());
 }
@@ -107,6 +110,27 @@ std::string rg::backtrace(int indent) {
     ss << prefix << "android stack dump done\n";
 
     return ss.str();
+#elif defined(_MSC_VER)
+    (void)indent;
+    class MyStackWalker : public StackWalker {
+    protected:
+        void OnLoadModule(LPCSTR,
+                          LPCSTR,
+                          DWORD64,
+                          DWORD,
+                          DWORD,
+                          LPCSTR,
+                          LPCSTR,
+                          ULONGLONG) override {}
+        void OnDbgHelpErr(LPCSTR, DWORD, DWORD64) override {}
+        void OnSymInit(LPCSTR, DWORD, LPCSTR) override {}
+        void OnOutput(LPCSTR szText) override { ss << szText; }
+    public:
+        using StackWalker::StackWalker;
+        std::stringstream ss;
+    };
+    MyStackWalker sw(StackWalker::RetrieveLine|StackWalker::RetrieveSymbol);
+    return sw.ShowCallstack() ? sw.ss.str() : std::string {};
 #else
     (void)indent;
     return {};

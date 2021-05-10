@@ -1,7 +1,9 @@
 set(sources
+    01-base/pch.cpp
     01-base/base.cpp
     01-base/log.cpp
     01-base/image.cpp
+    01-base/stack-walker.cpp
 )
 
 set(includes ../inc)

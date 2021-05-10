@@ -317,8 +317,19 @@ public:
 /// Send trap signal to debugger
 void breakIntoDebugger();
 
+/// Throw runtime exception.
 /// Instead of embed it in a macro. make this a utility function to make it easier to set debug break point on it.
 [[noreturn]] void throwRuntimeErrorException(const char * file, int line, const char * message);
+
+/// Throw runtime exception.
+[[noreturn]] inline void throwRuntimeErrorException(const char * file, int line, const std::string & message) {
+    throwRuntimeErrorException(file, line, message.c_str());
+}
+
+/// Throw runtime exception.
+[[noreturn]] inline void throwRuntimeErrorException(const char * file, int line, const std::stringstream & message) {
+    throwRuntimeErrorException(file, line, message.str().c_str());
+}
 
 /// Interprets the value of errnum, generating a string with a message that describes the error condition.
 inline const char * errno2str(int error) {
@@ -488,7 +499,6 @@ template<class T, size_t N, typename SIZE_TYPE = size_t>
 class StackArray {
     uint8_t   _buffer[sizeof(T)*N];
     SIZE_TYPE _count = 0;
-
     /// default constructor
     static inline void ctor( T * ptr, SIZE_TYPE count ) {
         for( SIZE_TYPE i = 0; i < count; ++i, ++ptr ) {
@@ -673,7 +683,6 @@ public:
 /// Represents a non-resizealbe list of elements. The range is fixed. But the content/elemnts could be mutable.
 template<typename T, typename SIZE_T = size_t>
 class MutableRange {
-
     T *     _ptr; ///< pointer to the first element in the list.
     SIZE_T  _size; ///< number of elements in the list.
 
@@ -709,7 +718,6 @@ public:
 /// Represents a constant non-resizealbe list of elements.
 template<typename T, typename SIZE_T = size_t>
 class ConstRange {
-
     const T *  _ptr; ///< pointer to the first element in the list.
     SIZE_T    _size; ///< number of elements in the list.
 
@@ -721,10 +729,13 @@ public:
 
     constexpr ConstRange(const T * ptr, SIZE_T size) : _ptr(ptr), _size(size) {}
 
+    constexpr ConstRange(const std::vector<T> & v) : _ptr(v.data()), _size((SIZE_T)v.size()) {}
+
+    template<SIZE_T N>
+    constexpr ConstRange(const T (&array)[N]) : _ptr(array), _size(N) {}
+
     template<SIZE_T N>
     constexpr ConstRange(const StackArray<T, N> & v) : _ptr(v.data()), _size(v.size()) {}
-
-    constexpr ConstRange(const std::vector<T> & v) : _ptr(v.data()), _size((SIZE_T)v.size()) {}
 
     template<SIZE_T N>
     constexpr ConstRange(const std::array<T, N> & v) : _ptr(v.data()), _size(v.size()) {}
@@ -1459,7 +1470,6 @@ public:
 
     /// \name Image loading utilities
     //@{
-
     /// Helper method to load from a binary stream.
     static RawImage load(std::istream &);
 
