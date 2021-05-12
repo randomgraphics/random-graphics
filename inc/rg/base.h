@@ -1337,9 +1337,29 @@ struct ImageDesc {
     ///
     ImageDesc(const ImagePlaneDesc & basemap, size_t layers = 1, size_t levels = 1) { reset(basemap, (uint32_t)layers, (uint32_t)levels); }
 
-    // can copy. can move.
+    // can copy.
     RG_DEFAULT_COPY(ImageDesc);
-    RG_DEFAULT_MOVE(ImageDesc);
+
+    /// move constructor
+    ImageDesc(ImageDesc && rhs) {
+        planes = std::move(rhs.planes); RG_ASSERT(rhs.planes.empty());
+        layers = rhs.layers; rhs.layers = 0;
+        levels = rhs.levels; rhs.levels = 0;
+        size   = rhs.size;   rhs.size = 0;
+        RG_ASSERT(rhs.empty());
+    }
+
+    /// move operator
+    ImageDesc & operator=(ImageDesc && rhs) {
+        if (this != &rhs) {
+            planes = std::move(rhs.planes); RG_ASSERT(rhs.planes.empty());
+            layers = rhs.layers; rhs.layers = 0;
+            levels = rhs.levels; rhs.levels = 0;
+            size   = rhs.size;   rhs.size = 0;
+            RG_ASSERT(rhs.empty());
+        }
+        return *this;
+    }
 
     //@}
 
@@ -1419,6 +1439,36 @@ private:
     void reset(const ImagePlaneDesc & basemap, uint32_t layers, uint32_t levels);
 };
 
+/// Image descriptor combined with a pointer to pixel array. This is a convenient helper class for passing image
+/// data around w/o actually copying pixel data array.
+struct ImageProxy {
+    ImageDesc desc; ///< the image descriptor
+    uint8_t * data = nullptr; ///< the image data (pixel array)
+
+    /// return size of the whole image in bytes.
+    uint32_t size() const { return desc.size; }
+
+    /// check if the image is empty or not.
+    bool empty() const { return desc.empty(); }
+
+    /// \name query properties of the specific plane.
+    //@{
+    ColorFormat format(size_t layer = 0, size_t level = 0) const { return desc.plane(layer, level).format; }
+    uint32_t    width (size_t layer = 0, size_t level = 0) const { return desc.plane(layer, level).width; }
+    uint32_t    height(size_t layer = 0, size_t level = 0) const { return desc.plane(layer, level).height; }
+    uint32_t    depth (size_t layer = 0, size_t level = 0) const { return desc.plane(layer, level).depth; }
+    uint32_t    step  (size_t layer = 0, size_t level = 0) const { return desc.plane(layer, level).step; }
+    uint32_t    pitch (size_t layer = 0, size_t level = 0) const { return desc.plane(layer, level).pitch; }
+    uint32_t    slice (size_t layer = 0, size_t level = 0) const { return desc.plane(layer, level).slice; }
+    //@}
+
+    /// return pointer to particular pixel
+    const uint8_t* pixel(size_t layer, size_t level, size_t x = 0, size_t y = 0, size_t z = 0) const { return data + desc.pixel(layer, level, x, y, z); }
+
+    /// return pointer to particular pixel
+    uint8_t*       pixel(size_t layer, size_t level, size_t x = 0, size_t y = 0, size_t z = 0)       { return data + desc.pixel(layer, level, x, y, z); }
+};
+
 ///
 /// A basic image class
 ///
@@ -1428,51 +1478,60 @@ public:
 
     /// \name ctor/dtor/copy/move
     //@{
+    RG_NO_COPY(RawImage);
     RawImage() = default;
     RawImage(ImageDesc && desc, const void * initialContent = nullptr, size_t initialContentSizeInbytes = 0);
     RawImage(const ImageDesc & desc, const void * initialContent = nullptr, size_t initialContentSizeInbytes = 0);
-    RG_NO_COPY(RawImage);
-    RG_DEFAULT_MOVE(RawImage);
+    RawImage(RawImage && rhs) {
+        _proxy.desc = std::move(rhs._proxy.desc); RG_ASSERT(rhs._proxy.desc.empty());
+        _proxy.data = rhs._proxy.data; rhs._proxy.data = nullptr;
+
+    }
+    ~RawImage();
+    RawImage & operator=(RawImage && rhs) {
+        if (this != &rhs) {
+            _proxy.desc = std::move(rhs._proxy.desc); RG_ASSERT(rhs._proxy.desc.empty());
+            _proxy.data = rhs._proxy.data; rhs._proxy.data = nullptr;
+        }
+        return *this;
+    }
     //@}
 
     /// \name basic property query
     //@{
 
+    /// return proxy of the image.
+    const ImageProxy & proxy() const { return _proxy; }
+
     /// return descriptor of the whole image
-    const ImageDesc& desc() const { return mDesc; }
+    const ImageDesc& desc() const { return _proxy.desc; }
 
     /// return descriptor of a image plane
-    const ImagePlaneDesc & desc(size_t layer, size_t level) const { return mDesc.plane(layer, level); }
+    const ImagePlaneDesc & desc(size_t layer, size_t level) const { return _proxy.desc.plane(layer, level); }
 
     /// return pointer to pixel buffer.
-    const uint8_t* data() const { return mPixels.get(); }
+    const uint8_t* data() const { return _proxy.data; }
 
     /// return pointer to pixel buffer.
-    uint8_t* data() { return mPixels.get(); }
+    uint8_t* data() { return _proxy.data; }
 
     /// return size of the whole image in bytes.
-    uint32_t size() const { return mDesc.size; }
+    uint32_t size() const { return _proxy.desc.size; }
 
     /// check if the image is empty or not.
-    bool empty() const { return mDesc.empty(); }
+    bool empty() const { return _proxy.desc.empty(); }
 
     //@}
 
     /// \name query properties of the specific plane.
     //@{
-    ColorFormat format(size_t layer = 0, size_t level = 0) const { return mDesc.plane(layer, level).format; }
-    uint32_t    width (size_t layer = 0, size_t level = 0) const { return mDesc.plane(layer, level).width; }
-    uint32_t    height(size_t layer = 0, size_t level = 0) const { return mDesc.plane(layer, level).height; }
-    uint32_t    depth (size_t layer = 0, size_t level = 0) const { return mDesc.plane(layer, level).depth; }
-    uint32_t    step  (size_t layer = 0, size_t level = 0) const { return mDesc.plane(layer, level).step; }
-    uint32_t    pitch (size_t layer = 0, size_t level = 0) const { return mDesc.plane(layer, level).pitch; }
-    uint32_t    slice (size_t layer = 0, size_t level = 0) const { return mDesc.plane(layer, level).slice; }
-    //@}
-
-    /// \name methods to return pointer to particular pixel
-    //@{
-    const uint8_t* pixel(size_t layer, size_t level, size_t x = 0, size_t y = 0, size_t z = 0) const { return mPixels.get() + mDesc.pixel(layer, level, x, y, z); }
-    uint8_t*       pixel(size_t layer, size_t level, size_t x = 0, size_t y = 0, size_t z = 0)       { return mPixels.get() + mDesc.pixel(layer, level, x, y, z); }
+    ColorFormat format(size_t layer = 0, size_t level = 0) const { return _proxy.desc.plane(layer, level).format; }
+    uint32_t    width (size_t layer = 0, size_t level = 0) const { return _proxy.desc.plane(layer, level).width; }
+    uint32_t    height(size_t layer = 0, size_t level = 0) const { return _proxy.desc.plane(layer, level).height; }
+    uint32_t    depth (size_t layer = 0, size_t level = 0) const { return _proxy.desc.plane(layer, level).depth; }
+    uint32_t    step  (size_t layer = 0, size_t level = 0) const { return _proxy.desc.plane(layer, level).step; }
+    uint32_t    pitch (size_t layer = 0, size_t level = 0) const { return _proxy.desc.plane(layer, level).pitch; }
+    uint32_t    slice (size_t layer = 0, size_t level = 0) const { return _proxy.desc.plane(layer, level).slice; }
     //@}
 
     /// \name Image loading utilities
@@ -1497,15 +1556,10 @@ public:
 
 private:
 
-    struct FreePixelArray {
-        void operator()(uint8_t * p) {
-            afree(p);
-        }
-    };
-    std::unique_ptr<uint8_t, FreePixelArray> mPixels;
-    ImageDesc mDesc;
+    ImageProxy _proxy;
 
 private:
+
     void construct(const void * initialContent, size_t initialContentSizeInbytes);
 };
 

@@ -210,25 +210,35 @@ void rg::ImageDesc::reset(const ImagePlaneDesc & basemap, uint32_t layers_, uint
 
 // -----------------------------------------------------------------------------
 //
-rg::RawImage::RawImage(ImageDesc&& desc, const void * initialContent, size_t initialContentSizeInbytes)
-: mDesc(std::move(desc)) {
+rg::RawImage::RawImage(ImageDesc&& desc, const void * initialContent, size_t initialContentSizeInbytes) {
+    _proxy.desc = std::move(desc);
     construct(initialContent, initialContentSizeInbytes);
 }
 
 // -----------------------------------------------------------------------------
 //
-rg::RawImage::RawImage(const ImageDesc & desc, const void * initialContent, size_t initialContentSizeInbytes)
-: mDesc(desc) {
+rg::RawImage::RawImage(const ImageDesc & desc, const void * initialContent, size_t initialContentSizeInbytes) {
+    _proxy.desc = std::move(desc);
     construct(initialContent, initialContentSizeInbytes);
+}
+
+// -----------------------------------------------------------------------------
+//
+rg::RawImage::~RawImage() {
+    afree(_proxy.data);
+    _proxy.data = nullptr;
 }
 
 // -----------------------------------------------------------------------------
 //
 void rg::RawImage::construct(const void * initialContent, size_t initialContentSizeInbytes) {
-    // allocate pixel buffer
+    // (re)allocate pixel buffer
+    afree(_proxy.data);
+    _proxy.data = nullptr;
     size_t imageSize = size();
-    mPixels.reset((uint8_t*)aalloc(mDesc.plane(0, 0).alignment, imageSize)); // TODO: LSM of all planes' alignment?
-    if (!mPixels) {
+    _proxy.data = (uint8_t*)aalloc(_proxy.desc.plane(0, 0).alignment, imageSize); // TODO: LSM of all planes' alignment?
+    if (!_proxy.data) {
+        RG_LOGE("failed to construct image: out of memory.");
         return;
     }
 
@@ -239,7 +249,7 @@ void rg::RawImage::construct(const void * initialContent, size_t initialContentS
         } else if (initialContentSizeInbytes != imageSize) {
             RG_LOGW("incoming pixel buffer size does not equal to calculated image size.");
         }
-        memcpy(mPixels.get(), initialContent, std::min(imageSize, initialContentSizeInbytes));
+        memcpy(_proxy.data, initialContent, std::min(imageSize, initialContentSizeInbytes));
     }
 }
 
