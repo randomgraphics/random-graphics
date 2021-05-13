@@ -1467,6 +1467,14 @@ struct ImageProxy {
 
     /// return pointer to particular pixel
     uint8_t*       pixel(size_t layer, size_t level, size_t x = 0, size_t y = 0, size_t z = 0)       { return data + desc.pixel(layer, level, x, y, z); }
+
+    bool operator == (const ImageProxy & rhs) const { return desc == rhs.desc && data == rhs.data; }
+    bool operator != (const ImageProxy & rhs) const { return !operator==(rhs); }
+    bool operator < (const ImageProxy & rhs) const {
+        if (desc < rhs.desc) return true;
+        if (rhs.desc < desc) return false;
+        return data < rhs.data;
+    }
 };
 
 ///
