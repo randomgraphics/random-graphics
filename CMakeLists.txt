@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.9)
 
 project(random-graphics)
 
-option(RG_BUILD_TEST "build tests" ON)
+option(RG_BUILD_CPU_TEST "build cpu tests" ON)
+option(RG_BUILD_GPU_TEST "build gpu tests" ON)
 option(RG_BUILD_SAMPLE "build sample apps" ON)
 option(RG_BUILD_OPENGL "build opengl support" ON)
 option(RG_BUILD_VULKAN "build vulkan support" ON)
@@ -17,7 +18,7 @@ if (RG_BUILD_VULKAN)
 endif()
 
 # build glfw only when build test and/or sample folder
-if (RG_BUILD_TEST OR RG_BUILD_SAMPLE)
+if (RG_BUILD_GPU_TEST OR RG_BUILD_SAMPLE)
     option(GLFW_BUILD_EXAMPLES "" OFF)
     option(GLFW_BUILD_TESTS "" OFF)
     option(GLFW_BUILD_DOCS "" OFF)
@@ -42,7 +43,7 @@ endif()
 
 add_subdirectory(src)
 
-if (RG_BUILD_TEST)
+if (RG_BUILD_CPU_TEST OR RG_BUILD_GPU_TEST)
     add_subdirectory(test)
 endif()
 

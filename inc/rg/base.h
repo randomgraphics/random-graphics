@@ -1222,7 +1222,8 @@ inline constexpr uint32_t makeBGRA8(T r, T g, T b, T a) {
 }
 
 /// This represents a single 1D/2D/3D image in an more complex image structure.
-// Note: avoid using size_t in this structure. So the size of the structure will never change, regardless of compile platform.
+/// Note: avoid using size_t in this structure. So the size of the structure will never change,
+/// regardless of compile platform.
 struct ImagePlaneDesc {
 
     /// pixel format
@@ -1240,7 +1241,7 @@ struct ImagePlaneDesc {
     /// bits (not BYTES) from one pixel to next. Minimal valid value is pixel size.
     uint32_t step = 0;
 
-    /// Bytes from one row to next. Minimal valid value is (width * step) and aligned to alignment.
+    /// Bytes from one row to next. Minimal valid value is (width * step) and aligned to pixel boundary.
     /// For compressed format, this is number of bytes in one scanline.
     uint32_t pitch = 0;
 
@@ -1253,8 +1254,8 @@ struct ImagePlaneDesc {
     /// Bytes between first pixel of the plane to the first pixel of the whole image.
     uint32_t offset = 0;
 
-    /// memory alignment requirement of the plane.
-    uint32_t alignment = 0;
+    // /// Memory alignment requirement of the plane. The value must be power of 2.
+    // uint32_t alignment = 0;
 
     /// returns offset of particular pixel within the plane
     size_t pixel(size_t x, size_t y, size_t z = 0) const {
@@ -1279,8 +1280,7 @@ struct ImagePlaneDesc {
             && pitch == rhs.pitch
             && slice == rhs.slice
             && size == rhs.size
-            && offset == rhs.offset
-            && alignment == rhs.alignment;
+            && offset == rhs.offset;
     }
 
     bool operator != (const ImagePlaneDesc & rhs) const { return !operator==(rhs); }
@@ -1294,12 +1294,31 @@ struct ImagePlaneDesc {
         if (pitch != rhs.pitch) return pitch < rhs.pitch;
         if (slice != rhs.slice) return slice < rhs.slice;
         if (size != rhs.size) return size < rhs.size;
-        if (offset != rhs.offset) return offset < rhs.offset;
-        return alignment < rhs.alignment;
+        return offset < rhs.offset;
     }
 
     /// Create a new image plane descriptor
-    static ImagePlaneDesc make(ColorFormat format, size_t width, size_t height = 1, size_t depth = 1, size_t step = 0, size_t pitch = 0, size_t slice = 0, size_t alignment = 4);
+    static ImagePlaneDesc make(ColorFormat format,
+                               size_t width, size_t height = 1, size_t depth = 1,
+                               size_t step = 0, size_t pitch = 0, size_t slice = 0);
+
+    /// Save the image plane to PNG file. This method only supports 8-bit and 16-bit image.
+    /// \param filename Target filename
+    /// \param pixels   The pixel array. The buffer length should be no less than ImagePlaneDesc::size.
+    ///                 Or else, the behavior is undefined.
+    void saveToPNG(const std::string & filename, const void * pixels, uint32_t z = 0);
+
+    /// Save the image plane to JPG file. This method only supports 8-bit and 16-bit image.
+    /// \param filename Target filename
+    /// \param pixels   The pixel array The buffer length should be no less than ImagePlaneDesc::size.
+    /// \param quality  Compression quality. Valid range is [1, 100];
+    void saveToJPG(const std::string & filename, const void * pixels, uint32_t z = 0, int quality = 80);
+
+    /// Save the image to .HDR format. This method will try convert everything to float4
+    void saveToHDR(const std::string & filename, const void * pixels, uint32_t z = 0);
+
+    /// A general save function. Use extension to determin file format. For JPG, will save as default quality.
+    void save(const std::string & filename, const void * pixels, uint32_t z = 0);
 };
 
 ///
@@ -1328,14 +1347,60 @@ struct ImageDesc {
 
     ImageDesc() = default;
 
+    /// Defines how pixels pakced in memory.
+    /// Note that this only affects how plane offset are calculated. The 'planes' data member in this structure
+    /// is always indexed in mip level major fashion.
+    enum ConsructionOrder {
+        /// In this mode, pixels from same mipmap level are packed together. For example, given a cubemap with
+        /// 6 faces and 3 mipmap levels, the pixels are packed in memory in this order:
+        ///
+        ///     face 0, mip 0
+        ///     face 1, mip 0
+        ///     ...
+        ///     face 5, mip 0
+        ///
+        ///     face 0, mip 1
+        ///     face 1, mip 1
+        ///     ...
+        ///     face 5, mip 1
+        ///
+        ///     face 0, mip 2
+        ///     face 1, mip 2
+        ///     ...
+        ///     face 5, mip 2
+        MIP_MAJOR,
+
+        /// In this mode, pixels from same face are packed together. For example, given a cubemap with 6 faces
+        /// and 3 mipmap levels, the offsets are calculated in this order:
+        ///
+        ///     face 0, mip 0
+        ///     face 0, mip 1
+        ///     face 0, mip 2
+        ///
+        ///     face 1, mip 0
+        ///     face 1, mip 1
+        ///     face 1, mip 2
+        ///     ...
+        ///     face 5, mip 0
+        ///     face 5, mip 1
+        ///     face 5, mip 2
+        ///
+        /// Note: this is the order used by DDS file.
+        FACE_MAJOR,
+    };
+
     ///
-    /// Construct image descriptor from basemap and layer/level count. If anything goes wrong, constructs an empty image descriptor.
+    /// Construct image descriptor from basemap and layer/level count. If anything goes wrong,
+    /// construct an empty image descriptor.
     ///
     /// \param basemap the base image
     /// \param layers number of layers. must be positive integer
     /// \param levels number of mipmap levels. set to 0 to automatically build full mipmap chain.
     ///
-    ImageDesc(const ImagePlaneDesc & basemap, size_t layers = 1, size_t levels = 1) { reset(basemap, (uint32_t)layers, (uint32_t)levels); }
+    ImageDesc(const ImagePlaneDesc & basemap, size_t layers = 1, size_t levels = 1,
+              ConsructionOrder order = MIP_MAJOR) {
+        reset(basemap, (uint32_t)layers, (uint32_t)levels, order);
+    }
 
     // can copy.
     RG_DEFAULT_COPY(ImageDesc);
@@ -1436,7 +1501,7 @@ private:
     }
 
     /// reset the descriptor
-    void reset(const ImagePlaneDesc & basemap, uint32_t layers, uint32_t levels);
+    void reset(const ImagePlaneDesc & basemap, uint32_t layers, uint32_t levels, ConsructionOrder order);
 };
 
 /// Image descriptor combined with a pointer to pixel array. This is a convenient helper class for passing image

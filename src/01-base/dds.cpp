@@ -436,7 +436,8 @@ const rg::ImageDesc & DDSReader::readHeader() {
 
     // Create image descriptor. Here we assume that the offset of each mipmap layer calculated by the image descriptor
     // completely matches the actual data offset in DDS file.
-    _imgDesc = rg::ImageDesc(rg::ImagePlaneDesc::make(_originalFormat, width, height, depth), faces, levels);
+    _imgDesc = rg::ImageDesc(rg::ImagePlaneDesc::make(_originalFormat, width, height, depth), faces, levels,
+                             rg::ImageDesc::FACE_MAJOR);
     RG_ASSERT( _imgDesc.valid() );
 
     // success
