@@ -29,7 +29,7 @@ do
   shift
 done
 
-image=randomgraphics/vulkan-android:1.2.162-ndk-22.1.7171670-cuda-11.3.0-ubuntu-20.04
+image=randomgraphics/vulkan-android:1.2.182-ndk-22.1.7171670-cuda-11.3.1-ubuntu-20.04
 
 # run docker
 docker run --rm \
