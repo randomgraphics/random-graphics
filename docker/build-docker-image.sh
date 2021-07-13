@@ -30,10 +30,10 @@ docker build -t randomgraphics/vulkan-android:1.2.182-ndk-22.1.7171670-cuda-11.3
 FROM randomgraphics/vulkan:11.2.182-cuda-11.3.1-ubuntu-20.04
 
 # download android studio (maybe not needed?)
-RUN wget -qO /opt/android-studio-ide-201.7042882-linux.tar.gz https://redirector.gvt1.com/edgedl/android/studio/ide-zips/4.1.2.0/android-studio-ide-201.7042882-linux.tar.gz
-RUN cd /opt;tar xzf android-studio-ide-201.7042882-linux.tar.gz
+RUN wget -q -c -O /opt/android-studio.tar.gz https://redirector.gvt1.com/edgedl/android/studio/ide-zips/4.2.2.0/android-studio-ide-202.7486908-linux.tar.gz
+RUN cd /opt;tar xzf android-studio.tar.gz
 RUN mkdir /opt/android;mv /opt/android-studio /opt/android/studio
-RUN rm /opt/android-studio-ide-201.7042882-linux.tar.gz
+RUN rm /opt/android-studio.tar.gz
 
 # download sdk tools
 RUN apt-get install unzip
